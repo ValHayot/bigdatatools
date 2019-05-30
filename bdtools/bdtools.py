@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from psutil import disk_partitions, disk_usage
-from os import access, R_OK, W_OK, getcwd, chdir
+from os import access, R_OK, W_OK, getcwd, chdir, path as op
 import sys
 
 
@@ -44,7 +44,8 @@ def avail_fs(working_dir=getcwd(), possible_fs=None):
     if 'localdisk' in possible_fs:
         storage['localdisk'] = []
 
-    for fs in storage.keys():
+    orig_keys = [k for k in storage.keys()]
+    for fs in orig_keys:
         if fs not in possible_fs:
             mounts = storage.pop(fs)
 
@@ -82,6 +83,7 @@ class HierarchicalFs:
         mountpoint = self.top_fs(total_size)
 
         chdir(mountpoint)
+        return mountpoint
 
 
     def sorted_storage(self):
