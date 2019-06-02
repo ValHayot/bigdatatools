@@ -2,6 +2,8 @@
 
 from psutil import disk_partitions, disk_usage
 from os import access, R_OK, W_OK, getcwd, chdir, path as op
+from blkinfo import BlkDiskInfo
+from numpy import asarray
 import sys
 
 
@@ -13,10 +15,20 @@ def add_el(d, k, v):
 
 
 def get_mount(all_partitions, fp):
-    return max([(p.mountpoint, p.fstype)
+    return max([(p.mountpoint, p.fstype, op.basename(p.device))
                 for p in all_partitions
                 if p.mountpoint in fp],
                key=lambda x: len(x[0]))
+
+
+def parent_drives(dt, dn):
+    parents = dt[dn]['parents']
+    
+    if len(parents) > 0:
+        return asarray(list(map(parent_drives, 
+                                [dt]*len(parents),
+                                parents))).flatten()
+    return dn
 
 
 def avail_fs(working_dir=getcwd(), possible_fs=None):
@@ -24,33 +36,47 @@ def avail_fs(working_dir=getcwd(), possible_fs=None):
     # return available mountpoints that user has rw access to
     storage = {}
     all_partitions = disk_partitions(all=True)
+    disk_tree = BlkDiskInfo()._disks
 
     for d in all_partitions:
         if access(d.mountpoint, R_OK) and access(d.mountpoint, W_OK):
-            add_el(storage, d.fstype, d.mountpoint)
+
+            if (d.fstype != 'tmpfs' and 'lustre' not in d.fstype
+                and d.device in disk_tree):
+                pd = parent_drives(disk_tree, d.device)
+
+                for p in pd:
+                    if disk_tree[p]['rota'] == '0':
+                        d.fstype = 'ssd'
+                    else:
+                        d.fstype = 'hdd'
+                    add_el(storage, d.fstype, d.mountpoint)
+            else:
+                    add_el(storage, d.fstype, d.mountpoint)
 
     # shoddy way of determining fs type of working dir
     if len([el for k,v in storage.items() for el in v if el == working_dir]) == 0:
         if access(working_dir, R_OK) and access(working_dir, W_OK):
             parent = get_mount(all_partitions, working_dir)
 
-            add_el(storage, parent[1], working_dir)
+            pd = parent_drives(disk_tree, parent[2])
+            fs = parent[1]
+            for p in pd:
+                if disk_tree[p]['rota'] == '0':
+                    fs = 'ssd'
+                else:
+                    fs = 'hdd'
+                add_el(storage, fs, working_dir)
 
     # some cleanup as not sure what to do with other filesystems for the moment
 
     if possible_fs is None:
-        possible_fs = ['tmpfs', 'localdisk', 'lustre']
-
-    if 'localdisk' in possible_fs:
-        storage['localdisk'] = []
+        possible_fs = ['tmpfs', 'ssd', 'hdd', 'lustre']
 
     orig_keys = [k for k in storage.keys()]
     for fs in orig_keys:
         if fs not in possible_fs:
             mounts = storage.pop(fs)
-
-            if fs in ['ext4', 'zfs'] and 'localdisk' in storage:
-                storage['localdisk'].extend(mounts)
 
     return storage
 
@@ -58,7 +84,7 @@ def avail_fs(working_dir=getcwd(), possible_fs=None):
 class HierarchicalFs:
 
     def __init__(self, working_dir=getcwd(),
-                 possible_fs=['tmpfs', 'localdisk', 'lustre']):
+                 possible_fs=['tmpfs', 'ssd', 'hdd', 'lustre']):
         self.storage = avail_fs(working_dir, possible_fs)
         self.possible_fs = possible_fs
         # key would be basename, value is the filesystem
@@ -101,7 +127,7 @@ class HierarchicalFs:
 
         priority_mounts = self.sorted_storage()
         for mount in priority_mounts:
-            if disk_usage(mount).free - size > 0:
+            if disk_usage(mount).free > size:
                 return mount
 
         print("ERROR: Not enough space on any device")
