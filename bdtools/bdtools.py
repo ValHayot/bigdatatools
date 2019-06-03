@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
 from psutil import disk_partitions, disk_usage
-from os import access, R_OK, W_OK, getcwd, chdir, path as op
+from os import access, R_OK, W_OK, getcwd, chdir, path as op, makedirs
 from blkinfo import BlkDiskInfo
 from numpy import asarray
+from getpass import getuser
+from socket import gethostname
 import sys
 
 
@@ -40,25 +42,66 @@ def set_ssd_hdd(pd, storage, disk_tree, mountpoint):
         add_el(storage, fstype, mountpoint)
 
 
-def avail_fs(working_dir=getcwd(), possible_fs=None):
+def wb_contents(wblist, list_type):
+    if wblist is not None:
+        if not isinstance(wblist, list) and op.isfile(wblist):
+            with open(wblist, 'r') as f:
+                wblist = [m for m in f if op.isdir(m)]
+
+                if len(wblist) == 0:
+                    print(('ERROR: {} file does not contain any valid' +
+                           'filepaths').format(list_type))
+                    sys.exit(1)
+        elif not isinstance(wblist, list):
+            print('ERROR: {} is not a file or a list'.format(list_type))
+            sys.exit(1)
+    return wblist
+
+def avail_fs(working_dir=getcwd(), possible_fs=None, whitelist=None,
+             blacklist=None):
 
     # return available mountpoints that user has rw access to
     storage = {}
     all_partitions = disk_partitions(all=True)
     disk_tree = BlkDiskInfo()._disks
 
+    whitelist = wb_contents(whitelist, 'whitelist') 
+    blacklist = wb_contents(blacklist, 'blacklist') 
+
     for d in all_partitions:
         if access(d.mountpoint, R_OK) and access(d.mountpoint, W_OK):
             device = op.basename(d.device)
+            mountpoint = d.mountpoint
+            if (whitelist is not None and mountpoint not in whitelist):
+
+                # check if mountpoint is one of the mounts specified in 
+                # one of the whitelist's directories
+                for fm in whitelist:
+                    if get_mount(all_partitions, fm) == mountpoint:
+                        mountpoint = fm
+                        break
+                continue
+
+            # if mount is blacklisted, skip
+            if blacklist is not None and mountpoint in blacklist:
+                continue
+
+            if mountpoint != working_dir:
+                mountpoint = op.join(mountpoint,
+                                     '{0}-{1}'.format(gethostname(), getuser()))
+
             if (d.fstype != 'tmpfs' and 'lustre' not in d.fstype
                 and op.basename(device) in disk_tree):
                 pd = parent_drives(disk_tree, device)
-                set_ssd_hdd(pd, storage, disk_tree, d.mountpoint)
+                set_ssd_hdd(pd, storage, disk_tree, mountpoint)
             else:
-                    add_el(storage, d.fstype, d.mountpoint)
+                add_el(storage, d.fstype, mountpoint)
 
     # shoddy way of determining fs type of working dir
-    if len([el for k,v in storage.items() for el in v if el == working_dir]) == 0:
+    if (whitelist is None and
+        len([el for k,v in storage.items()
+             for el in v if el == working_dir]) == 0):
+
         if access(working_dir, R_OK) and access(working_dir, W_OK):
             parent = get_mount(all_partitions, working_dir)
 
@@ -82,9 +125,12 @@ def avail_fs(working_dir=getcwd(), possible_fs=None):
 class HierarchicalFs:
 
     def __init__(self, working_dir=getcwd(),
-                 possible_fs=['tmpfs', 'ssd', 'hdd', 'lustre']):
-        self.storage = avail_fs(working_dir, possible_fs)
-        self.possible_fs = possible_fs
+                 possible_fs=['tmpfs', 'ssd', 'hdd', 'lustre'],
+                 whitelist=None, blacklist=None):
+        self.storage = avail_fs(working_dir, possible_fs,
+                                whitelist, blacklist)
+        self.possible_fs = self.storage.keys()
+
         # key would be basename, value is the filesystem
         #TODO: consider converting value to namedtuple where file reuse is a parameter
         # such that if file reuse = 0, lustre is selected over other filesystems
@@ -125,6 +171,8 @@ class HierarchicalFs:
 
         priority_mounts = self.sorted_storage()
         for mount in priority_mounts:
+            if not op.isdir(mount):
+                makedirs(mount)
             if disk_usage(mount).free > size:
                 return mount
 
