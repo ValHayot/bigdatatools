@@ -31,6 +31,15 @@ def parent_drives(dt, dn):
     return dn
 
 
+def set_ssd_hdd(pd, storage, disk_tree, mountpoint):
+    for p in pd:
+        if disk_tree[p]['rota'] == '0':
+            fstype = 'ssd'
+        else:
+            fstype = 'hdd'
+        add_el(storage, fstype, mountpoint)
+
+
 def avail_fs(working_dir=getcwd(), possible_fs=None):
 
     # return available mountpoints that user has rw access to
@@ -40,17 +49,11 @@ def avail_fs(working_dir=getcwd(), possible_fs=None):
 
     for d in all_partitions:
         if access(d.mountpoint, R_OK) and access(d.mountpoint, W_OK):
-
+            device = op.basename(d.device)
             if (d.fstype != 'tmpfs' and 'lustre' not in d.fstype
-                and d.device in disk_tree):
-                pd = parent_drives(disk_tree, d.device)
-
-                for p in pd:
-                    if disk_tree[p]['rota'] == '0':
-                        d.fstype = 'ssd'
-                    else:
-                        d.fstype = 'hdd'
-                    add_el(storage, d.fstype, d.mountpoint)
+                and op.basename(device) in disk_tree):
+                pd = parent_drives(disk_tree, device)
+                set_ssd_hdd(pd, storage, disk_tree, d.mountpoint)
             else:
                     add_el(storage, d.fstype, d.mountpoint)
 
@@ -61,12 +64,7 @@ def avail_fs(working_dir=getcwd(), possible_fs=None):
 
             pd = parent_drives(disk_tree, parent[2])
             fs = parent[1]
-            for p in pd:
-                if disk_tree[p]['rota'] == '0':
-                    fs = 'ssd'
-                else:
-                    fs = 'hdd'
-                add_el(storage, fs, working_dir)
+            set_ssd_hdd(pd, storage, disk_tree, working_dir)
 
     # some cleanup as not sure what to do with other filesystems for the moment
 
