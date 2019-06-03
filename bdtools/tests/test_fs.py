@@ -94,10 +94,24 @@ def test_whitelist():
     
     '''
 
+    #TODO: add asserts for if whitelist is a file, and also, if contains invalid
+    #      directories
     hfs = HierarchicalFs(whitelist=['/tmp'])
     ss = hfs.sorted_storage()
     assert(ss == [op.join('/tmp', tmp_dir)]), ss
     assert(list(hfs.storage.keys()) == ['tmpfs']), hfs.storage.keys() 
 
 
+def test_blacklist():
+    ''' Test to verify that blacklist is functioning as intended
+
+    '''
+    #TODO: add asserts for when blacklist is a file
+    ignore_dir = ['/tmp', '/dev/shm']
+    hfs = HierarchicalFs(blacklist=ignore_dir)
+    ss = hfs.sorted_storage()
+    exp_out = [d for d in exp_sstorage
+               if d.replace('/{}'.format(tmp_dir), '') not in ignore_dir]
+    assert(ss == exp_out), ss
+    assert(list(hfs.storage.keys()) == ['tmpfs', 'ssd']), hfs.storage.keys() 
 
