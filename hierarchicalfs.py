@@ -294,15 +294,14 @@ class HierarchicalFs(Operations):
         for r in dirents:
             yield r
 
+    # TODO: test to verify proper functioning
     # modified
     def readlink(self, path):
-        pathname = os.readlink(self._full_path(path))
+        fp = self._full_path(path)
+        pathname = os.readlink(fp)
         if pathname.startswith("/"):
             # Path name is absolute, sanitize it.
-            if len(self.root.split(':')) > 1:
-                return os.path.relpath(pathname, self.root.split(':')[1])
-            else:
-                return os.path.relpath(pathname, self.root)
+            return os.path.relpath(pathname, os.path.dirname(fp))
         else:
             return pathname
 
