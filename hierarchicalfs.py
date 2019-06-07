@@ -6,6 +6,8 @@ import os
 import sys
 import errno
 import stat
+import atexit
+import signal
 from psutil import disk_partitions, disk_usage
 from blkinfo import BlkDiskInfo
 from numpy import asarray
@@ -128,6 +130,12 @@ def avail_fs(working_dir=os.getcwd(), possible_fs=None, whitelist=None,
     for fs in orig_keys:
         if fs not in possible_fs:
             mounts = storage.pop(fs)
+            
+    # ensure all temp working dirs are created
+    for k,v in storage.items():
+        for mount in v:
+            if not os.path.isdir(mount):
+                os.makedirs(mount)
 
     return storage
 
@@ -139,6 +147,11 @@ class HierarchicalFs(Operations):
         self.storage = avail_fs(working_dir=working_dir) 
         self.possible_fs = self.storage.keys()
         self.hierarchy = self.sorted_storage()
+        self.working_dir = working_dir
+
+        atexit.register(self.cleanup)
+        signal.signal(signal.SIGTERM, self.cleanup)
+        signal.signal(signal.SIGINT, self.cleanup)
 
 
     # Helpers
@@ -162,7 +175,6 @@ class HierarchicalFs(Operations):
                 return True, fp
         return False, None
 
-
     def sorted_storage(self):
         priority_fs = []
 
@@ -173,12 +185,10 @@ class HierarchicalFs(Operations):
 
         return priority_fs
                 
-
+    
     def top_fs(self, size=1.049*(10**6)):
 
         for mount in self.hierarchy:
-            if not os.path.isdir(mount):
-                os.makedirs(mount)
             # must be at least 1MiB of space
             if disk_usage(mount).free > 1.049*(10**6):
                 print(mount, disk_usage(mount).free)
@@ -187,6 +197,13 @@ class HierarchicalFs(Operations):
         print("ERROR: Not enough space on any device")
         #sys.exit(1)
 
+    def cleanup(self):
+        for mount in self.hierarchy:
+            if mount != self.working_dir:
+                for f in os.listdir(mount):
+                    move(os.path.join(mount, f), self.working_dir)
+
+    
     # Filesystem methods
     # ==================
 
@@ -301,9 +318,6 @@ class HierarchicalFs(Operations):
         except OSError as e:
             
             print('ERROR: ', str(e))
-            # may remove
-            if 'file descriptor' in str(e):
-                sys.exit(1)
 
             next_mount = self.top_fs(os.path.getsize(fp))
             new_fp = os.path.join(next_mount, os.path.basename(fp))
