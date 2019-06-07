@@ -5,6 +5,7 @@ from __future__ import with_statement
 import os
 import sys
 import errno
+import stat
 from psutil import disk_partitions, disk_usage
 from blkinfo import BlkDiskInfo
 from numpy import asarray
@@ -143,6 +144,7 @@ class HierarchicalFs(Operations):
     # Helpers
     # =======
 
+    # modified
     def _full_path(self, partial):
         partial = partial.lstrip("/")
 
@@ -151,6 +153,7 @@ class HierarchicalFs(Operations):
             path = os.path.join(self.top_fs(), partial)
         return path
 
+    # modified
     def path_exists(self, partial):
 
         for storage in self.hierarchy:
@@ -286,6 +289,7 @@ class HierarchicalFs(Operations):
         os.lseek(fh, offset, os.SEEK_SET)
         return os.read(fh, length)
 
+    # modified
     def write(self, path, buf, offset, fh):
         out = None
         failed = True
@@ -303,14 +307,16 @@ class HierarchicalFs(Operations):
                 failed = False
             except OSError as e:
                 
+                print('ERROR: ', str(e))
                 # may remove
                 if 'file descriptor' in str(e):
                     sys.exit(1)
+
                 next_mount = self.top_fs(os.path.getsize(fp))
                 new_fp = os.path.join(next_mount, os.path.basename(fp))
 
                 if fp != new_fp:
-                    #TODO: next to test what happens when there are consecutive failures
+                    #TODO: test what happens when there are consecutive failures
                     print('Out of memory: ', fp, '--->', new_fp)
                     move(fp, new_fp)
                     new_fh = os.open(new_fp, os.O_CREAT | os.O_RDWR)
@@ -330,6 +336,7 @@ class HierarchicalFs(Operations):
         return os.fsync(fh)
 
     def release(self, path, fh):
+        os.chmod(fh, stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
         return os.close(fh)
 
     def fsync(self, path, fdatasync, fh):
