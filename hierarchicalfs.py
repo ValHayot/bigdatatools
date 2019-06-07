@@ -295,37 +295,29 @@ class HierarchicalFs(Operations):
         failed = True
         fp = self._full_path(path)
 
-        count = 0
-        while failed:
+        try:
+            os.lseek(fh, offset, os.SEEK_SET)
+            out = os.write(fh, buf)
+        except OSError as e:
+            
+            print('ERROR: ', str(e))
+            # may remove
+            if 'file descriptor' in str(e):
+                sys.exit(1)
 
-            # will remove, just keeping this for now otherwise breaks the fs
-            # in certain conditions
-            if count == 6: sys.exit(1)
-            try:
-                os.lseek(fh, offset, os.SEEK_SET)
-                out = os.write(fh, buf)
-                failed = False
-            except OSError as e:
-                
-                print('ERROR: ', str(e))
-                # may remove
-                if 'file descriptor' in str(e):
-                    sys.exit(1)
+            next_mount = self.top_fs(os.path.getsize(fp))
+            new_fp = os.path.join(next_mount, os.path.basename(fp))
 
-                next_mount = self.top_fs(os.path.getsize(fp))
-                new_fp = os.path.join(next_mount, os.path.basename(fp))
+            if fp != new_fp:
+                #TODO: test what happens when there are consecutive failures
+                print('Out of memory: ', fp, '--->', new_fp)
+                move(fp, new_fp)
+                new_fh = os.open(new_fp, os.O_CREAT | os.O_RDWR)
+                os.dup2(new_fh, fh)
+                fp = new_fp
 
-                if fp != new_fp:
-                    #TODO: test what happens when there are consecutive failures
-                    print('Out of memory: ', fp, '--->', new_fp)
-                    move(fp, new_fp)
-                    new_fh = os.open(new_fp, os.O_CREAT | os.O_RDWR)
-                    os.dup2(new_fh, fh)
-                    fp = new_fp
-
-                failed = True
-            count += 1
         return out
+
     
     def truncate(self, path, length, fh=None):
         full_path = self._full_path(path)
