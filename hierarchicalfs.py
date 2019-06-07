@@ -142,13 +142,22 @@ def avail_fs(working_dir=os.getcwd(), possible_fs=None, whitelist=None,
     return storage
 
 def mv2workdir(hierarchy, working_dir):
+    #TODO: improve policy
+    # remove file with oldest last access time
     while True:
+        file_access = {}
         for mount in hierarchy:
             if mount != working_dir:
                 for f in os.listdir(mount):
-                    sleep(60)
-                    print('Moving file', f)
-                    move(os.path.join(mount, f), working_dir)
+                    fp = os.path.join(mount, f)
+                    file_access[os.path.getatime(fp)] = fp
+
+        if len(file_access.keys()) > 0:
+            f = file_access[sorted(file_access.keys())[0]]
+            print('Moving file', fp, '-->', self.working_dir)
+            move(f, working_dir)
+
+        sleep(20)
 
 # Adapted from: https://www.stavros.io/posts/python-fuse-filesystem/
 
@@ -231,12 +240,15 @@ class HierarchicalFs(Operations):
 
 
     def cleanup(self):
-        #self.loop.stop()
-        #self.loop.close()
+        print('***Cleaning up FUSE fs***')
         for mount in self.hierarchy:
             if mount != self.working_dir:
                 for f in os.listdir(mount):
-                    move(os.path.join(mount, f), self.working_dir)
+                    fp = os.path.join(mount, f)
+
+                    if f not in os.listdir(self.working_dir): 
+                        print('Moving file', fp, '-->', self.working_dir)
+                        move(os.path.join(mount, f), self.working_dir)
 
     
     # Filesystem methods
