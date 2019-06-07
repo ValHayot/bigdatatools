@@ -8,12 +8,14 @@ import errno
 import stat
 import atexit
 import signal
+#import asyncio remove as was not working. will investigate further
+from threading import Thread
 from psutil import disk_partitions, disk_usage
 from blkinfo import BlkDiskInfo
 from numpy import asarray
 from getpass import getuser
 from socket import gethostname
-from time import time
+from time import time, sleep
 from shutil import move
 
 from refuse.high import FUSE, FuseOSError, Operations
@@ -139,6 +141,14 @@ def avail_fs(working_dir=os.getcwd(), possible_fs=None, whitelist=None,
 
     return storage
 
+def mv2workdir(hierarchy, working_dir):
+    while True:
+        for mount in hierarchy:
+            if mount != working_dir:
+                for f in os.listdir(mount):
+                    sleep(60)
+                    print('Moving file', f)
+                    move(os.path.join(mount, f), working_dir)
 
 # Adapted from: https://www.stavros.io/posts/python-fuse-filesystem/
 
@@ -153,9 +163,31 @@ class HierarchicalFs(Operations):
         signal.signal(signal.SIGTERM, self.cleanup)
         signal.signal(signal.SIGINT, self.cleanup)
 
+        self.thread = Thread(target=mv2workdir, args=(self.hierarchy, self.working_dir))
+        self.thread.setDaemon(True)
+        self.thread.start()
+        #self.loop = asyncio.get_event_loop()
+        #self.mv2workdir()
+
 
     # Helpers
     # =======
+
+
+        #return self.loop.run_until_complete(self.__async__mv2workdir())
+
+    '''
+    async def __async__mv2workdir(self):
+        print('in async')
+        return None
+        for mount in self.hierarchy:
+            if mount != self.working_dir:
+                for f in os.listdir(mount):
+                    await asyncio.sleep(60)
+                    print('Moving file', f)
+                    return move(os.path.join(mount, f), self.working_dir)
+    '''
+
 
     # modified
     def _full_path(self, partial):
@@ -197,7 +229,10 @@ class HierarchicalFs(Operations):
         print("ERROR: Not enough space on any device")
         #sys.exit(1)
 
+
     def cleanup(self):
+        #self.loop.stop()
+        #self.loop.close()
         for mount in self.hierarchy:
             if mount != self.working_dir:
                 for f in os.listdir(mount):
@@ -351,7 +386,7 @@ class HierarchicalFs(Operations):
 
 def main(mountpoint, wd):
     
-    FUSE(HierarchicalFs(os.path.abspath(wd)), mountpoint, nothreads=True, foreground=True)
+    FUSE(HierarchicalFs(os.path.abspath(wd)), mountpoint, nothreads=False, foreground=True)
 
 if __name__ == '__main__':
     main(sys.argv[1], sys.argv[2])
