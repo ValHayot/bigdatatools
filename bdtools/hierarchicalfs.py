@@ -23,21 +23,23 @@ from refuse.high import FUSE, FuseOSError, Operations
 
 # global helpers
 def add_el(d, k, v):
-    if k in d:
+    if k in d and v not in d[k]:
         d[k].append(v)
     else:
         d[k] = [v]
 
 
 def get_mount(all_partitions, fp):
-    return max([(p.mountpoint, p.fstype, os.path.basename(p.device))
+    return max([(p.mountpoint, p.fstype, os.path.basename(p.device) if p.device.startswith("/") else p.device)
                 for p in all_partitions
                 if p.mountpoint in fp],
                key=lambda x: len(x[0]))
 
 
 def parent_drives(dt, dn):
-    parents = dt[dn]['parents']
+    parents = []
+    if dn in dt:
+        parents = dt[dn]['parents']
     
     if len(parents) > 0:
         return asarray(list(map(parent_drives, 
@@ -59,7 +61,8 @@ def wb_contents(wblist, list_type):
     if wblist is not None:
         if not isinstance(wblist, list) and os.path.isfile(wblist):
             with open(wblist, 'r') as f:
-                wblist = [m.strip(os.linesep) for m in f if os.path.isdir(m.strip(os.linesep))]
+                wblist = [m.strip(os.linesep).rstrip("/") for m in f if os.path.isdir(m.strip(os.linesep))]
+                print(wblist)
 
                 if len(wblist) == 0:
                     print(('ERROR: {} file does not contain any valid ' +
@@ -78,6 +81,8 @@ def avail_fs(working_dir=os.getcwd(), possible_fs=None, whitelist=None,
     storage = {}
     all_partitions = disk_partitions(all=True)
     disk_tree = BlkDiskInfo()._disks
+    #print("\n\n".join(["{0} : {1}".format(k,v) for k,v in disk_tree.items() if 'lustrefs' in str(v)]))
+    #print("\n\n".join([str(el) for el in all_partitions if 'lustrefs' in str(el)]))
 
     whitelist = wb_contents(whitelist, 'whitelist') 
     blacklist = wb_contents(blacklist, 'blacklist') 
@@ -120,7 +125,10 @@ def avail_fs(working_dir=os.getcwd(), possible_fs=None, whitelist=None,
 
             pd = parent_drives(disk_tree, parent[2])
             fs = parent[1]
-            set_ssd_hdd(pd, storage, disk_tree, working_dir)
+            if fs != 'lustre':
+                set_ssd_hdd(pd, storage, disk_tree, working_dir)
+            else:
+                add_el(storage, fs, working_dir)
 
     # some cleanup as not sure what to do with other filesystems for the moment
 
@@ -151,7 +159,10 @@ def mv2workdir(hierarchy, working_dir, delay=20):
                 for dirpath, _, files in os.walk(mount):
                     for f in files:
                         fp = os.path.join(dirpath, f)
-                        file_access[os.path.getatime(fp)] = (fp, os.path.relpath(dirpath, mount))
+                        
+                        # only cp if file is readonly
+                        if os.access(fp, os.R_OK):
+                            file_access[os.path.getatime(fp)] = (fp, os.path.relpath(dirpath, mount))
 
         if len(file_access.keys()) > 0:
             fp, subdir = file_access[sorted(file_access.keys())[0]]
@@ -169,6 +180,8 @@ class HierarchicalFs(Operations):
         self.storage = avail_fs(working_dir=working_dir, whitelist=whitelist) 
         self.possible_fs = self.storage.keys()
         self.hierarchy = self.sorted_storage()
+
+        #print("\n".join("{0}: {1}".format(k, v) for k,v in self.storage.items()))
 
         print("INFO: Storage hierarchy: ", " -> ".join(self.hierarchy))
 
@@ -425,7 +438,7 @@ def main(mountpoint, wd, whitelist=None):
 
 if __name__ == '__main__':
 
-    if len(sys.argv) > 2:
+    if len(sys.argv) > 3:
         main(sys.argv[1], sys.argv[2], sys.argv[3])
     else:
         main(sys.argv[1], sys.argv[2])
