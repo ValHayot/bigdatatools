@@ -59,10 +59,10 @@ def wb_contents(wblist, list_type):
     if wblist is not None:
         if not isinstance(wblist, list) and os.path.isfile(wblist):
             with open(wblist, 'r') as f:
-                wblist = [m for m in f if os.path.isdir(m)]
+                wblist = [m.strip(os.linesep) for m in f if os.path.isdir(m.strip(os.linesep))]
 
                 if len(wblist) == 0:
-                    print(('ERROR: {} file does not contain any valid' +
+                    print(('ERROR: {} file does not contain any valid ' +
                            'filepaths').format(list_type))
                     sys.exit(1)
         elif not isinstance(wblist, list):
@@ -112,8 +112,7 @@ def avail_fs(working_dir=os.getcwd(), possible_fs=None, whitelist=None,
                 add_el(storage, d.fstype, mountpoint)
 
     # shoddy way of determining fs type of working dir
-    if (whitelist is None and
-        len([el for k,v in storage.items()
+    if (len([el for k,v in storage.items()
              for el in v if el == working_dir]) == 0):
 
         if os.access(working_dir, os.R_OK) and os.access(working_dir, os.W_OK):
@@ -141,10 +140,11 @@ def avail_fs(working_dir=os.getcwd(), possible_fs=None, whitelist=None,
 
     return storage
 
-def mv2workdir(hierarchy, working_dir):
+def mv2workdir(hierarchy, working_dir, delay=20):
     #TODO: improve policy
     # remove file with oldest last access time
     while True:
+        sleep(delay)
         file_access = {}
         for mount in hierarchy:
             if mount != working_dir:
@@ -159,15 +159,19 @@ def mv2workdir(hierarchy, working_dir):
             print('Moving file', fp, '-->', out_dir)
             move(fp, out_dir)
 
-        sleep(20)
 
 # Adapted from: https://www.stavros.io/posts/python-fuse-filesystem/
 
 class HierarchicalFs(Operations):
-    def __init__(self, working_dir):
-        self.storage = avail_fs(working_dir=working_dir) 
+    def __init__(self, working_dir, whitelist=None, blacklist=None):
+
+        print("INFO: Setting up storage")
+        self.storage = avail_fs(working_dir=working_dir, whitelist=whitelist) 
         self.possible_fs = self.storage.keys()
         self.hierarchy = self.sorted_storage()
+
+        print("INFO: Storage hierarchy: ", " -> ".join(self.hierarchy))
+
         self.working_dir = working_dir
 
         atexit.register(self.cleanup)
@@ -234,7 +238,7 @@ class HierarchicalFs(Operations):
         for mount in self.hierarchy:
             # must be at least 1MiB of space
             if disk_usage(mount).free > 1.049*(10**6):
-                print(mount, disk_usage(mount).free)
+                #print(mount, disk_usage(mount).free)
                 return mount
 
         print("ERROR: Not enough space on any device")
@@ -261,10 +265,12 @@ class HierarchicalFs(Operations):
         if not os.access(full_path, mode):
             raise FuseOSError(errno.EACCES)
 
+    #TODO: adapt for directories
     def chmod(self, path, mode):
         full_path = self._full_path(path)
         return os.chmod(full_path, mode)
 
+    #TODO: adapt for directories
     def chown(self, path, uid, gid):
         full_path = self._full_path(path)
         return os.chown(full_path, uid, gid)
@@ -312,15 +318,19 @@ class HierarchicalFs(Operations):
 
     # modified
     def rmdir(self, path):
+        spath = path.lstrip("/")
+        print("INFO: Removing directory", spath)
         for d in self.hierarchy:
-            os.rmdir(os.path.join(d, path.lstrip("/")))
+            os.rmdir(os.path.join(d, spath))
         #full_path = self._full_path(path)
         #return os.rmdir(full_path)
 
     # modified
     def mkdir(self, path, mode):
+        spath = path.lstrip("/")
+        print("INFO: Creating directory", spath)
         for d in self.hierarchy:
-            os.mkdir(os.path.join(d, path.lstrip("/")), mode)
+            os.mkdir(os.path.join(d, spath), mode)
 
     def statfs(self, path):
         full_path = self._full_path(path)
@@ -335,6 +345,7 @@ class HierarchicalFs(Operations):
     def symlink(self, name, target):
         return os.symlink(name, self._full_path(target))
 
+    #TODO: adapt for directories
     def rename(self, old, new):
         return os.rename(self._full_path(old), self._full_path(new))
 
@@ -348,10 +359,12 @@ class HierarchicalFs(Operations):
     # ============
 
     def open(self, path, flags):
+        print("INFO: Opening file", path)
         full_path = self._full_path(path)
         return os.open(full_path, flags)
 
     def create(self, path, mode, fi=None):
+        print("INFO: Creating file", path)
         full_path = self._full_path(path)
         return os.open(full_path, os.O_WRONLY | os.O_CREAT, mode)
 
@@ -387,11 +400,13 @@ class HierarchicalFs(Operations):
 
     
     def truncate(self, path, length, fh=None):
+        print("INFO: Truncating file", path)
         full_path = self._full_path(path)
         with open(full_path, 'r+') as f:
             f.truncate(length)
 
     def flush(self, path, fh):
+        print("INFO: Flushing file", path)
         return os.fsync(fh)
 
     def release(self, path, fh):
@@ -404,9 +419,14 @@ class HierarchicalFs(Operations):
         return self.flush(path, fh)
 
 
-def main(mountpoint, wd):
+def main(mountpoint, wd, whitelist=None):
     
-    FUSE(HierarchicalFs(os.path.abspath(wd)), mountpoint, nothreads=False, foreground=True)
+    FUSE(HierarchicalFs(os.path.abspath(wd), whitelist=whitelist), mountpoint, nothreads=False, foreground=True)
 
 if __name__ == '__main__':
-    main(sys.argv[1], sys.argv[2])
+
+    if len(sys.argv) > 2:
+        main(sys.argv[1], sys.argv[2], sys.argv[3])
+    else:
+        main(sys.argv[1], sys.argv[2])
+
