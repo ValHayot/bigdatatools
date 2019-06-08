@@ -148,14 +148,16 @@ def mv2workdir(hierarchy, working_dir):
         file_access = {}
         for mount in hierarchy:
             if mount != working_dir:
-                for f in os.listdir(mount):
-                    fp = os.path.join(mount, f)
-                    file_access[os.path.getatime(fp)] = fp
+                for dirpath, _, files in os.walk(mount):
+                    for f in files:
+                        fp = os.path.join(dirpath, f)
+                        file_access[os.path.getatime(fp)] = (fp, os.path.relpath(dirpath, mount))
 
         if len(file_access.keys()) > 0:
-            f = file_access[sorted(file_access.keys())[0]]
-            print('Moving file', fp, '-->', self.working_dir)
-            move(f, working_dir)
+            fp, subdir = file_access[sorted(file_access.keys())[0]]
+            out_dir = os.path.join(working_dir, subdir) 
+            print('Moving file', fp, '-->', out_dir)
+            move(fp, out_dir)
 
         sleep(20)
 
@@ -308,12 +310,17 @@ class HierarchicalFs(Operations):
     def mknod(self, path, mode, dev):
         return os.mknod(self._full_path(path), mode, dev)
 
+    # modified
     def rmdir(self, path):
-        full_path = self._full_path(path)
-        return os.rmdir(full_path)
+        for d in self.hierarchy:
+            os.rmdir(os.path.join(d, path.lstrip("/")))
+        #full_path = self._full_path(path)
+        #return os.rmdir(full_path)
 
+    # modified
     def mkdir(self, path, mode):
-        return os.mkdir(self._full_path(path), mode)
+        for d in self.hierarchy:
+            os.mkdir(os.path.join(d, path.lstrip("/")), mode)
 
     def statfs(self, path):
         full_path = self._full_path(path)
@@ -388,6 +395,8 @@ class HierarchicalFs(Operations):
         return os.fsync(fh)
 
     def release(self, path, fh):
+        print('WARNING: File to be converted to read-only')
+        print('INFO: Closing file')
         os.chmod(fh, stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
         return os.close(fh)
 
