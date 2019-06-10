@@ -8,6 +8,7 @@ import errno
 import stat
 import atexit
 import signal
+import subprocess
 #import asyncio remove as was not working. will investigate further
 from threading import Thread
 from psutil import disk_partitions, disk_usage
@@ -148,7 +149,7 @@ def avail_fs(working_dir=os.getcwd(), possible_fs=None, whitelist=None,
 
     return storage
 
-def mv2workdir(hierarchy, working_dir, delay=20):
+def mv2workdir(hierarchy, working_dir, delay=40):
     #TODO: improve policy
     # remove file with oldest last access time
     while True:
@@ -161,7 +162,7 @@ def mv2workdir(hierarchy, working_dir, delay=20):
                         fp = os.path.join(dirpath, f)
                         
                         # only cp if file is readonly
-                        if os.access(fp, os.R_OK):
+                        if not os.access(fp, os.W_OK):
                             file_access[os.path.getatime(fp)] = (fp, os.path.relpath(dirpath, mount))
 
         if len(file_access.keys()) > 0:
@@ -246,11 +247,30 @@ class HierarchicalFs(Operations):
         return priority_fs
                 
     
-    def top_fs(self, size=1.049*(10**6)):
+    def top_fs(self, size=1244*1.024*(10**6)):
 
         for mount in self.hierarchy:
             # must be at least 1MiB of space
-            if disk_usage(mount).free > 1.049*(10**6):
+            available = disk_usage(mount).free
+            if mount in self.storage["tmpfs"]:
+                tmpfs_used = sum(os.path.getsize(os.path.join(dp, f))
+                                 for m in self.storage["tmpfs"]
+                                 for dp, _, files in os.walk(m)
+                                 for f in files
+                                 if os.path.isfile(os.path.join(dp, f)))
+                print("Used tmpfs space:", tmpfs_used)
+                try:
+                    p = subprocess.Popen(["echo", os.environ["SLURM_MEM_PER_NODE"]],
+                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    (out, err) = p.communicate()
+                    available_mem = int(int(out)*1.049*(10**6) - tmpfs_used)
+
+                    if available_mem < available:
+                        available = available_mem
+                    print("INFO: Available space", available)
+                except Exception as e:
+                    print(str(e))
+            if available > size:
                 #print(mount, disk_usage(mount).free)
                 return mount
 
@@ -377,8 +397,8 @@ class HierarchicalFs(Operations):
         return os.open(full_path, flags)
 
     def create(self, path, mode, fi=None):
-        print("INFO: Creating file", path)
         full_path = self._full_path(path)
+        print("INFO: Creating file", full_path)
         return os.open(full_path, os.O_WRONLY | os.O_CREAT, mode)
 
     def read(self, path, length, offset, fh):
@@ -390,6 +410,7 @@ class HierarchicalFs(Operations):
         out = None
         failed = True
         fp = self._full_path(path)
+
 
         try:
             os.lseek(fh, offset, os.SEEK_SET)
