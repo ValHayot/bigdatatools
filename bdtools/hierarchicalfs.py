@@ -63,14 +63,14 @@ def wb_contents(wblist, list_type):
         if not isinstance(wblist, list) and os.path.isfile(wblist):
             with open(wblist, 'r') as f:
                 wblist = [m.strip(os.linesep).rstrip("/") for m in f if os.path.isdir(m.strip(os.linesep))]
-                print(wblist)
+                #print(wblist)
 
                 if len(wblist) == 0:
-                    print(('ERROR: {} file does not contain any valid ' +
-                           'filepaths').format(list_type))
+                    #print(('ERROR: {} file does not contain any valid ' +
+                    #       'filepaths').format(list_type))
                     sys.exit(1)
         elif not isinstance(wblist, list):
-            print('ERROR: {} is not a file or a list'.format(list_type))
+            #print('ERROR: {} is not a file or a list'.format(list_type))
             sys.exit(1)
     return wblist
 
@@ -149,7 +149,7 @@ def avail_fs(working_dir=os.getcwd(), possible_fs=None, whitelist=None,
 
     return storage
 
-def mv2workdir(hierarchy, working_dir, delay=40):
+def mv2workdir(hierarchy, working_dir, delay=5):
     #TODO: improve policy
     # remove file with oldest last access time
     while True:
@@ -165,10 +165,10 @@ def mv2workdir(hierarchy, working_dir, delay=40):
                         if not os.access(fp, os.W_OK):
                             file_access[os.path.getatime(fp)] = (fp, os.path.relpath(dirpath, mount))
 
-        if len(file_access.keys()) > 0:
+        if len(file_access.keys()) > 1:
             fp, subdir = file_access[sorted(file_access.keys())[0]]
             out_dir = os.path.join(working_dir, subdir) 
-            print('Moving file', fp, '-->', out_dir)
+            #print('Moving file', fp, '-->', out_dir)
             move(fp, out_dir)
 
 
@@ -177,14 +177,14 @@ def mv2workdir(hierarchy, working_dir, delay=40):
 class HierarchicalFs(Operations):
     def __init__(self, working_dir, whitelist=None, blacklist=None):
 
-        print("INFO: Setting up storage")
+        #print("INFO: Setting up storage")
         self.storage = avail_fs(working_dir=working_dir, whitelist=whitelist) 
         self.possible_fs = self.storage.keys()
         self.hierarchy = self.sorted_storage()
 
         #print("\n".join("{0}: {1}".format(k, v) for k,v in self.storage.items()))
 
-        print("INFO: Storage hierarchy: ", " -> ".join(self.hierarchy))
+        #print("INFO: Storage hierarchy: ", " -> ".join(self.hierarchy))
 
         self.working_dir = working_dir
 
@@ -258,7 +258,7 @@ class HierarchicalFs(Operations):
                                  for dp, _, files in os.walk(m)
                                  for f in files
                                  if os.path.isfile(os.path.join(dp, f)))
-                print("Used tmpfs space:", tmpfs_used)
+                #print("Used tmpfs space:", tmpfs_used)
                 try:
                     p = subprocess.Popen(["echo", os.environ["SLURM_MEM_PER_NODE"]],
                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -267,26 +267,27 @@ class HierarchicalFs(Operations):
 
                     if available_mem < available:
                         available = available_mem
-                    print("INFO: Available space", available)
+                    #print("INFO: Available space", available)
                 except Exception as e:
-                    print(str(e))
+                    pass
+                    #print(str(e))
             if available > size:
                 #print(mount, disk_usage(mount).free)
                 return mount
 
-        print("ERROR: Not enough space on any device")
+        #print("ERROR: Not enough space on any device")
         #sys.exit(1)
 
 
     def cleanup(self):
-        print('***Cleaning up FUSE fs***')
+        #print('***Cleaning up FUSE fs***')
         for mount in self.hierarchy:
             if mount != self.working_dir:
                 for f in os.listdir(mount):
                     fp = os.path.join(mount, f)
 
                     if f not in os.listdir(self.working_dir): 
-                        print('Moving file', fp, '-->', self.working_dir)
+                        #print('Moving file', fp, '-->', self.working_dir)
                         move(os.path.join(mount, f), self.working_dir)
 
     
@@ -317,7 +318,7 @@ class HierarchicalFs(Operations):
         else:
             st = os.lstat(full_path)
             # TODO: perhaps handle pipeline execution here
-            print("Error: {} does not exist.".format(full_path))
+            #print("Error: {} does not exist.".format(full_path))
         return dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
                      'st_gid', 'st_mode', 'st_mtime', 'st_nlink', 'st_size',
                      'st_uid', 'st_blocks'))
@@ -352,7 +353,7 @@ class HierarchicalFs(Operations):
     # modified
     def rmdir(self, path):
         spath = path.lstrip("/")
-        print("INFO: Removing directory", spath)
+        #print("INFO: Removing directory", spath)
         for d in self.hierarchy:
             os.rmdir(os.path.join(d, spath))
         #full_path = self._full_path(path)
@@ -361,7 +362,7 @@ class HierarchicalFs(Operations):
     # modified
     def mkdir(self, path, mode):
         spath = path.lstrip("/")
-        print("INFO: Creating directory", spath)
+        #print("INFO: Creating directory", spath)
         for d in self.hierarchy:
             os.mkdir(os.path.join(d, spath), mode)
 
@@ -392,13 +393,13 @@ class HierarchicalFs(Operations):
     # ============
 
     def open(self, path, flags):
-        print("INFO: Opening file", path)
+        #print("INFO: Opening file", path)
         full_path = self._full_path(path)
         return os.open(full_path, flags)
 
     def create(self, path, mode, fi=None):
         full_path = self._full_path(path)
-        print("INFO: Creating file", full_path)
+        #print("INFO: Creating file", full_path)
         return os.open(full_path, os.O_WRONLY | os.O_CREAT, mode)
 
     def read(self, path, length, offset, fh):
@@ -411,20 +412,19 @@ class HierarchicalFs(Operations):
         failed = True
         fp = self._full_path(path)
 
-
         try:
             os.lseek(fh, offset, os.SEEK_SET)
             out = os.write(fh, buf)
         except OSError as e:
             
-            print('ERROR: ', str(e))
+            #print('ERROR: ', str(e))
 
             next_mount = self.top_fs(os.path.getsize(fp))
             new_fp = os.path.join(next_mount, os.path.basename(fp))
 
             if fp != new_fp:
                 #TODO: test what happens when there are consecutive failures
-                print('Out of memory: ', fp, '--->', new_fp)
+                #print('Out of memory: ', fp, '--->', new_fp)
                 move(fp, new_fp)
                 new_fh = os.open(new_fp, os.O_CREAT | os.O_RDWR)
                 os.dup2(new_fh, fh)
@@ -434,18 +434,18 @@ class HierarchicalFs(Operations):
 
     
     def truncate(self, path, length, fh=None):
-        print("INFO: Truncating file", path)
+        #print("INFO: Truncating file", path)
         full_path = self._full_path(path)
         with open(full_path, 'r+') as f:
             f.truncate(length)
 
     def flush(self, path, fh):
-        print("INFO: Flushing file", path)
+        #print("INFO: Flushing file", path)
         return os.fsync(fh)
 
     def release(self, path, fh):
-        print('WARNING: File to be converted to read-only')
-        print('INFO: Closing file')
+        #print('WARNING: File to be converted to read-only')
+        #print('INFO: Closing file')
         os.chmod(fh, stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
         return os.close(fh)
 
@@ -455,7 +455,8 @@ class HierarchicalFs(Operations):
 
 def main(mountpoint, wd, whitelist=None):
     
-    FUSE(HierarchicalFs(os.path.abspath(wd), whitelist=whitelist), mountpoint, nothreads=False, foreground=True)
+    FUSE(HierarchicalFs(os.path.abspath(wd), whitelist=whitelist), mountpoint, nothreads=True, foreground=True,
+                        big_writes=True, max_read=262144, max_write=262144)
 
 if __name__ == '__main__':
 
