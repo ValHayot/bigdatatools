@@ -1,0 +1,1256 @@
+{
+    "tool-version": "mcin/docker-fsl:latest",
+    "author": "Oxford Centre for Functional MRI of the Brain (FMRIB)",
+    "descriptor-url": "fsl_maths.json",
+    "command-line": "FSLOUTPUTTYPE=NIFTI;fslmaths [dt] [INPUT_FILE] [addn] [subn] [muln] [divn] [remn] [mas] [thr] [thrp] [thrP] [uthr] [uthrp] [uthrP] [maxn] [minn] [seed] [restart] [save] [exp] [log] [sin] [cos] [tan] [asin] [acos] [atan] [sqr] [sqrt] [recip] [abs] [bin] [binv] [fillh] [fillh26] [index] [grid] [edge] [tfce] [tfceS] [nan] [nanm] [rand] [randn] [inm] [ing] [range] [tensor_decomp] [kernel_3D] [kernel_2D] [kernel_box] [kernel_boxv] [kernel_boxv3] [kernel_gauss] [kernel_sphere] [kernel_file] [dilM] [dilD] [dilF] [dilall] [ero] [eroF] [fmedian] [fmean] [fmeanu] [s] [subsamp2] [subsamp2offc] [Tmean] [Tstd] [Tmax] [Tmaxn] [Tmin] [Tmedian] [Tperc] [Tar1] [Xmean] [Xstd] [Xmax] [Xmaxn] [Xmin] [Xmedian] [Xperc] [Xar1] [Ymean] [Ystd] [Ymax] [Ymaxn] [Ymin] [Ymedian] [Yperc] [Yar1] [Zmean] [Zstd] [Zmax] [Zmaxn] [Zmin] [Zmedian] [Zperc] [Zar1] [pval] [pval0] [cpval] [ztop] [ptoz] [rank] [ranknorm] [roi] [bptf] [roc] [OUTPUT_FILE] [odt]",
+    "container-image": {
+        "image": "mcin/docker-fsl:latest",
+        "type": "docker"
+    },
+    "description": "Descriptor of fslmaths from the FSL toolbox. Performs mathematical operations on NIfTI images",
+    "inputs": [
+        {
+            "id": "dt",
+            "name": "dt",
+            "optional": true,
+            "type": "String",
+            "value-choices": [
+                "char",
+                "short",
+                "int",
+                "float",
+                "double",
+                "input"
+            ],
+            "value-key": "[dt]",
+            "description": "sets the datatype used internally for calculations (default float for all except double images). \"input\" will set the datatype to that of the original image",
+            "command-line-flag": "-dt"
+        },
+        {
+            "id": "input_file",
+            "name": "Input file",
+            "optional": false,
+            "type": "File",
+            "value-key": "[INPUT_FILE]"
+        },
+        {
+            "id": "addn",
+            "name": "addn",
+            "optional": true,
+            "type": "Number",
+            "value-key": "[addn]",
+            "description": "add following number to current image",
+            "command-line-flag": "-add"
+        },
+        {
+            "id": "subn",
+            "name": "subn",
+            "optional": true,
+            "type": "Number",
+            "value-key": "[subn]",
+            "description": "subtract following number from current image",
+            "command-line-flag": "-sub"
+        },
+        {
+            "id": "muln",
+            "name": "muln",
+            "optional": true,
+            "type": "Number",
+            "value-key": "[muln]",
+            "description": "multiply current image by following number",
+            "command-line-flag": "-mul"
+        },
+        {
+            "id": "divn",
+            "name": "divn",
+            "optional": true,
+            "type": "Number",
+            "value-key": "[divn]",
+            "description": "divide current image by following number",
+            "command-line-flag": "-div"
+        },
+        {
+            "id": "remn",
+            "name": "remn",
+            "optional": true,
+            "type": "Number",
+            "value-key": "[remn]",
+            "description": "modulus remainder - divide current image by following number and take remainder",
+            "command-line-flag": "-rem"
+        },
+        {
+            "id": "mas",
+            "name": "mas",
+            "optional": true,
+            "type": "File",
+            "value-key": "[mas]",
+            "description": "use (following image>0) to mask current image",
+            "command-line-flag": "-mas"
+        },
+        {
+            "id": "thr",
+            "name": "thr",
+            "optional": true,
+            "type": "Number",
+            "value-key": "[thr]",
+            "description": "use following number to threshold current image (zero anything below the number)",
+            "command-line-flag": "-thr"
+        },
+        {
+            "id": "thrp",
+            "name": "thrp",
+            "optional": true,
+            "type": "Number",
+            "minimum": 0,
+            "maximum": 100,
+            "value-key": "[thrp]",
+            "description": "use following percentage (0-100) of ROBUST RANGE to threshold current image (zero anything below the number)",
+            "command-line-flag": "-thrp"
+        },
+        {
+            "id": "thrP",
+            "name": "thrP",
+            "optional": true,
+            "type": "Number",
+            "minimum": 0,
+            "maximum": 100,
+            "value-key": "[thrP]",
+            "description": "use following percentage (0-100) of ROBUST RANGE of non-zero voxels and threshold below",
+            "command-line-flag": "-thrP"
+        },
+        {
+            "id": "uthr",
+            "name": "uthr",
+            "optional": true,
+            "type": "Number",
+            "value-key": "[uthr]",
+            "description": "use following number to upper-threshold current image (zero anything above the number)",
+            "command-line-flag": "-uthr"
+        },
+        {
+            "id": "uthrp",
+            "name": "uthrp",
+            "optional": true,
+            "type": "Number",
+            "minimum": 0,
+            "maximum": 100,
+            "value-key": "[uthrp]",
+            "description": "use following percentage (0-100) of ROBUST RANGE to upper-threshold current image (zero anything above the number)",
+            "command-line-flag": "-uthrp"
+        },
+        {
+            "id": "uthrP",
+            "name": "uthrP",
+            "optional": true,
+            "type": "Number",
+            "minimum": 0,
+            "maximum": 100,
+            "value-key": "[uthrP]",
+            "description": "use following percentage (0-100) of ROBUST RANGE of non-zero voxels and threshold above",
+            "command-line-flag": "-uthrP"
+        },
+        {
+            "id": "maxn",
+            "name": "maxn",
+            "optional": true,
+            "type": "Number",
+            "value-key": "[maxn]",
+            "description": "take maximum of following number and current image",
+            "command-line-flag": "-max"
+        },
+        {
+            "id": "minn",
+            "name": "minn",
+            "optional": true,
+            "type": "Number",
+            "value-key": "[minn]",
+            "description": "take minimum of following number and current image",
+            "command-line-flag": "-min"
+        },
+        {
+            "id": "seed",
+            "name": "seed",
+            "optional": true,
+            "type": "Number",
+            "value-key": "[seed]",
+            "description": "seed random number generator with following number",
+            "command-line-flag": "-seed"
+        },
+        {
+            "id": "restart",
+            "name": "restart",
+            "optional": true,
+            "type": "File",
+            "value-key": "[restart]",
+            "description": "replace the current image with input for future processing operations",
+            "command-line-flag": "-restart"
+        },
+        {
+            "id": "save",
+            "name": "save",
+            "optional": true,
+            "type": "File",
+            "value-key": "[save]",
+            "description": "save the current working image to the input filename",
+            "command-line-flag": "-save"
+        },
+        {
+            "id": "exp",
+            "name": "exp",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[exp]",
+            "description": "exponential",
+            "command-line-flag": "-exp"
+        },
+        {
+            "id": "log",
+            "name": "log",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[log]",
+            "description": "natural logarithm",
+            "command-line-flag": "-log"
+        },
+        {
+            "id": "sin",
+            "name": "sin",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[sin]",
+            "description": "sine function",
+            "command-line-flag": "-sin"
+        },
+        {
+            "id": "cos",
+            "name": "cos",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[cos]",
+            "description": "cosine function",
+            "command-line-flag": "-cos"
+        },
+        {
+            "id": "tan",
+            "name": "tan",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[tan]",
+            "description": "tangent function",
+            "command-line-flag": "-tan"
+        },
+        {
+            "id": "asin",
+            "name": "asin",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[asin]",
+            "description": "arc sine function",
+            "command-line-flag": "-asin"
+        },
+        {
+            "id": "acos",
+            "name": "acos",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[acos]",
+            "description": "arc cosine function",
+            "command-line-flag": "-acos"
+        },
+        {
+            "id": "atan",
+            "name": "atan",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[atan]",
+            "description": "arc tangent function",
+            "command-line-flag": "-atan"
+        },
+        {
+            "id": "sqr",
+            "name": "sqr",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[sqr]",
+            "description": "square",
+            "command-line-flag": "-sqr"
+        },
+        {
+            "id": "sqrt",
+            "name": "sqrt",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[sqrt]",
+            "description": "square root",
+            "command-line-flag": "-sqrt"
+        },
+        {
+            "id": "recip",
+            "name": "recip",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[recip]",
+            "description": "reciprocal (1/current image)",
+            "command-line-flag": "-recip"
+        },
+        {
+            "id": "abs",
+            "name": "abs",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[abs]",
+            "description": "absolute value",
+            "command-line-flag": "-abs"
+        },
+        {
+            "id": "bin",
+            "name": "bin",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[bin]",
+            "description": "use (current image>0) to binarise",
+            "command-line-flag": "-bin"
+        },
+        {
+            "id": "binv",
+            "name": "binv",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[binv]",
+            "description": "binarise and invert (binarisation and logical inversion)",
+            "command-line-flag": "-binv"
+        },
+        {
+            "id": "fillh",
+            "name": "fillh",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[fillh]",
+            "description": "fill holes in a binary mask (holes are internal - i.e. do not touch the edge of the FOV)",
+            "command-line-flag": "-fillh"
+        },
+        {
+            "id": "fillh26",
+            "name": "fillh26",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[fillh26]",
+            "description": "fill holes using 26 connectivity",
+            "command-line-flag": "-fillh26"
+        },
+        {
+            "id": "index",
+            "name": "index",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[index]",
+            "description": "replace each nonzero voxel with a unique (subject to wrapping) index number",
+            "command-line-flag": "-index"
+        },
+        {
+            "id": "grid",
+            "name": "grid",
+            "optional": true,
+            "type": "Number",
+            "list": true,
+            "min-list-entries": 2,
+            "max-list-entries": 2,
+            "list-separator": " ",
+            "value-key": "[grid]",
+            "description": "add a 3D grid of intensity <value> with grid spacing <spacing>",
+            "command-line-flag": "-grid"
+        },
+        {
+            "id": "edge",
+            "name": "edge",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[edge]",
+            "description": "edge strength",
+            "command-line-flag": "-edge"
+        },
+        {
+            "id": "tfce",
+            "name": "tfce",
+            "optional": true,
+            "type": "Number",
+            "list": true,
+            "min-list-entries": 3,
+            "max-list-entries": 3,
+            "list-separator": " ",
+            "value-key": "[tfce]",
+            "description": "enhance with TFCE <H> <E> <connectivity>, e.g. -tfce 2 0.5 6 (maybe change 6 to 26 for skeletons)",
+            "command-line-flag": "-tfce"
+        },
+        {
+            "id": "tfceS",
+            "name": "tfceS",
+            "optional": true,
+            "type": "Number",
+            "list": true,
+            "min-list-entries": 7,
+            "max-list-entries": 7,
+            "list-separator": " ",
+            "value-key": "[tfceS]",
+            "description": "<H> <E> <connectivity> <X> <Y> <Z> <tfce_thresh>: show support area for voxel (X,Y,Z)",
+            "command-line-flag": "-tfceS"
+        },
+        {
+            "id": "nan",
+            "name": "nan",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[nan]",
+            "description": "replace NaNs (improper numbers) with 0",
+            "command-line-flag": "-nan"
+        },
+        {
+            "id": "nanm",
+            "name": "nanm",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[nanm]",
+            "description": "make NaN (improper number) mask with 1 for NaN voxels, 0 otherwise",
+            "command-line-flag": "-nanm"
+        },
+        {
+            "id": "rand",
+            "name": "rand",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[rand]",
+            "description": "add uniform noise (range 0:1)",
+            "command-line-flag": "-rand"
+        },
+        {
+            "id": "randn",
+            "name": "randn",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[randn]",
+            "description": "add Gaussian noise (mean=0 sigma=1)",
+            "command-line-flag": "-randn"
+        },
+        {
+            "id": "inm",
+            "name": "inm",
+            "optional": true,
+            "type": "Number",
+            "value-key": "[inm]",
+            "description": "(-i i ip.c) intensity normalisation (per 3D volume mean)",
+            "command-line-flag": "-inm"
+        },
+        {
+            "id": "ing",
+            "name": "ing",
+            "optional": true,
+            "type": "Number",
+            "value-key": "[ing]",
+            "description": "(-I i ip.c) intensity normalisation, global 4D mean)",
+            "command-line-flag": "-ing"
+        },
+        {
+            "id": "range",
+            "name": "range",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[range]",
+            "description": "set the output calmin/max to full data range",
+            "command-line-flag": "-range"
+        },
+        {
+            "id": "tensor_decomp",
+            "name": "tensor_decomp",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[tensor_decomp]",
+            "description": "convert a 4D (6-timepoint )tensor image into L1,2,3,FA,MD,MO,V1,2,3 (remaining image in pipeline is FA)",
+            "command-line-flag": "-tensor_decomp"
+        },
+        {
+            "id": "kernel_3D",
+            "name": "kernel_3D",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[kernel_3D]",
+            "description": "3x3x3 box centered on target voxel (set as default kernel)",
+            "command-line-flag": "-kernel 3D"
+        },
+        {
+            "id": "kernel_2D",
+            "name": "kernel_2D",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[kernel_2D]",
+            "description": "3x3x1 box centered on target voxel",
+            "command-line-flag": "-kernel 2D"
+        },
+        {
+            "id": "kernel_box",
+            "name": "kernel_box",
+            "optional": true,
+            "type": "Number",
+            "value-key": "[kernel_box]",
+            "description": "all voxels in a cube of width <size> mm centered on target voxel",
+            "command-line-flag": "-kernel box"
+        },
+        {
+            "id": "kernel_boxv",
+            "name": "kernel_boxv",
+            "optional": true,
+            "type": "Number",
+            "integer": true,
+            "value-key": "[kernel_boxv]",
+            "description": "all voxels in a cube of width <size> voxels centered on target voxel, CAUTION: size should be an odd number",
+            "command-line-flag": "-kernel boxv"
+        },
+        {
+            "id": "kernel_boxv3",
+            "name": "kernel_boxv3",
+            "optional": true,
+            "type": "Number",
+            "list": true,
+            "min-list-entries": 3,
+            "max-list-entries": 3,
+            "list-separator": " ",
+            "value-key": "[kernel_boxv3]",
+            "description": "<X> <Y> <Z>: all voxels in a cuboid of dimensions X x Y x Z centered on target voxel, CAUTION: size should be an odd number",
+            "command-line-flag": "-kernel boxv3"
+        },
+        {
+            "id": "kernel_gauss",
+            "name": "kernel_gauss",
+            "optional": true,
+            "type": "Number",
+            "value-key": "[kernel_gauss]",
+            "description": "gaussian kernel (sigma in mm, not voxels)",
+            "command-line-flag": "-kernel gauss"
+        },
+        {
+            "id": "kernel_sphere",
+            "name": "kernel_sphere",
+            "optional": true,
+            "type": "Number",
+            "value-key": "[kernel_sphere]",
+            "description": "all voxels in a sphere of radius <size> mm centered on target voxel",
+            "command-line-flag": "-kernel sphere"
+        },
+        {
+            "id": "kernel_file",
+            "name": "kernel_file",
+            "optional": true,
+            "type": "File",
+            "value-key": "[kernel_file]",
+            "description": "use external file as kernel",
+            "command-line-flag": "-kernel file"
+        },
+        {
+            "id": "dilM",
+            "name": "dilM",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[dilM]",
+            "description": "Mean Dilation of non-zero voxels",
+            "command-line-flag": "-dilM"
+        },
+        {
+            "id": "dilD",
+            "name": "dilD",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[dilD]",
+            "description": "Modal Dilation of non-zero voxels",
+            "command-line-flag": "-dilD"
+        },
+        {
+            "id": "dilF",
+            "name": "dilF",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[dilF]",
+            "description": "Maximum filtering of all voxels",
+            "command-line-flag": "-dilF"
+        },
+        {
+            "id": "dilall",
+            "name": "dilall",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[dilall]",
+            "description": "Apply -dilM repeatedly until the entire FOV is covered",
+            "command-line-flag": "-dilall"
+        },
+        {
+            "id": "ero",
+            "name": "ero",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[ero]",
+            "description": "Erode by zeroing non-zero voxels when zero voxels found in kernel",
+            "command-line-flag": "-ero"
+        },
+        {
+            "id": "eroF",
+            "name": "eroF",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[eroF]",
+            "description": "Minimum filtering of all voxels",
+            "command-line-flag": "-eroF"
+        },
+        {
+            "id": "fmedian",
+            "name": "fmedian",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[fmedian]",
+            "description": "Median Filtering",
+            "command-line-flag": "-fmedian"
+        },
+        {
+            "id": "fmean",
+            "name": "fmean",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[fmean]",
+            "description": "Mean filtering, kernel weighted (conventionally used with gauss kernel)",
+            "command-line-flag": "-fmean"
+        },
+        {
+            "id": "fmeanu",
+            "name": "fmeanu",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[fmeanu]",
+            "description": "Mean filtering, kernel weighted, un-normalised (gives edge effects)",
+            "command-line-flag": "-fmeanu"
+        },
+        {
+            "id": "s",
+            "name": "s",
+            "optional": true,
+            "type": "Number",
+            "value-key": "[s]",
+            "description": "create a gauss kernel of sigma mm and perform mean filtering",
+            "command-line-flag": "-s"
+        },
+        {
+            "id": "subsamp2",
+            "name": "subsamp2",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[subsamp2]",
+            "description": "downsamples image by a factor of 2 (keeping new voxels centred on old)",
+            "command-line-flag": "-subsamp2"
+        },
+        {
+            "id": "subsamp2offc",
+            "name": "subsamp2offc",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[subsamp2offc]",
+            "description": "downsamples image by a factor of 2 (non-centred)",
+            "command-line-flag": "-subsamp2offc"
+        },
+        {
+            "id": "Tmean",
+            "name": "Tmean",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Tmean]",
+            "description": "mean across time",
+            "command-line-flag": "-Tmean"
+        },
+        {
+            "id": "Tstd",
+            "name": "Tstd",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Tstd]",
+            "description": "standard deviation across time",
+            "command-line-flag": "-Tstd"
+        },
+        {
+            "id": "Tmax",
+            "name": "Tmax",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Tmax]",
+            "description": "max across time",
+            "command-line-flag": "-Tmax"
+        },
+        {
+            "id": "Tmaxn",
+            "name": "Tmaxn",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Tmaxn]",
+            "description": "time index of max across time",
+            "command-line-flag": "-Tmaxn"
+        },
+        {
+            "id": "Tmin",
+            "name": "Tmin",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Tmin]",
+            "description": "min across time",
+            "command-line-flag": "-Tmin"
+        },
+        {
+            "id": "Tmedian",
+            "name": "Tmedian",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Tmedian]",
+            "description": "median across time",
+            "command-line-flag": "-Tmedian"
+        },
+        {
+            "id": "Tperc",
+            "name": "Tperc",
+            "optional": true,
+            "type": "Number",
+            "minimum": 0,
+            "maximum": 100,
+            "value-key": "[Tperc]",
+            "description": "nth percentile (0-100) of FULL RANGE across time",
+            "command-line-flag": "-Tperc"
+        },
+        {
+            "id": "Tar1",
+            "name": "Tar1",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Tar1]",
+            "description": "temporal AR(1) coefficient (use -odt float and probably demean first)",
+            "command-line-flag": "-Tar1"
+        },
+        {
+            "id": "Xmean",
+            "name": "Xmean",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Xmean]",
+            "description": "mean across X-axis",
+            "command-line-flag": "-Xmean"
+        },
+        {
+            "id": "Xstd",
+            "name": "Xstd",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Xstd]",
+            "description": "standard deviation across X-axis",
+            "command-line-flag": "-Xstd"
+        },
+        {
+            "id": "Xmax",
+            "name": "Xmax",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Xmax]",
+            "description": "max across X-axis",
+            "command-line-flag": "-Xmax"
+        },
+        {
+            "id": "Xmaxn",
+            "name": "Xmaxn",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Xmaxn]",
+            "description": "time index of max across X-axis",
+            "command-line-flag": "-Xmaxn"
+        },
+        {
+            "id": "Xmin",
+            "name": "Xmin",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Xmin]",
+            "description": "min across X-axis",
+            "command-line-flag": "-Xmin"
+        },
+        {
+            "id": "Xmedian",
+            "name": "Xmedian",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Xmedian]",
+            "description": "median across X-axis",
+            "command-line-flag": "-Xmedian"
+        },
+        {
+            "id": "Xperc",
+            "name": "Xperc",
+            "optional": true,
+            "type": "Number",
+            "minimum": 0,
+            "maximum": 100,
+            "value-key": "[Xperc]",
+            "description": "nth percentile (0-100) of FULL RANGE across X-axis",
+            "command-line-flag": "-Xperc"
+        },
+        {
+            "id": "Xar1",
+            "name": "Xar1",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Xar1]",
+            "description": "X-axis AR(1) coefficient (use -odt float and probably demean first)",
+            "command-line-flag": "-Xar1"
+        },
+        {
+            "id": "Ymean",
+            "name": "Ymean",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Ymean]",
+            "description": "mean across Y-axis",
+            "command-line-flag": "-Ymean"
+        },
+        {
+            "id": "Ystd",
+            "name": "Ystd",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Ystd]",
+            "description": "standard deviation across Y-axis",
+            "command-line-flag": "-Ystd"
+        },
+        {
+            "id": "Ymax",
+            "name": "Ymax",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Ymax]",
+            "description": "max across Y-axis",
+            "command-line-flag": "-Ymax"
+        },
+        {
+            "id": "Ymaxn",
+            "name": "Ymaxn",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Ymaxn]",
+            "description": "time index of max across Y-axis",
+            "command-line-flag": "-Ymaxn"
+        },
+        {
+            "id": "Ymin",
+            "name": "Ymin",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Ymin]",
+            "description": "min across Y-axis",
+            "command-line-flag": "-Ymin"
+        },
+        {
+            "id": "Ymedian",
+            "name": "Ymedian",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Ymedian]",
+            "description": "median across Y-axis",
+            "command-line-flag": "-Ymedian"
+        },
+        {
+            "id": "Yperc",
+            "name": "Yperc",
+            "optional": true,
+            "type": "Number",
+            "minimum": 0,
+            "maximum": 100,
+            "value-key": "[Yperc]",
+            "description": "nth percentile (0-100) of FULL RANGE across Y-axis",
+            "command-line-flag": "-Yperc"
+        },
+        {
+            "id": "Yar1",
+            "name": "Yar1",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Yar1]",
+            "description": "Y-axis AR(1) coefficient (use -odt float and probably demean first)",
+            "command-line-flag": "-Yar1"
+        },
+        {
+            "id": "Zmean",
+            "name": "Zmean",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Zmean]",
+            "description": "mean across Z-axis",
+            "command-line-flag": "-Zmean"
+        },
+        {
+            "id": "Zstd",
+            "name": "Zstd",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Zstd]",
+            "description": "standard deviation across Z-axis",
+            "command-line-flag": "-Zstd"
+        },
+        {
+            "id": "Zmax",
+            "name": "Zmax",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Zmax]",
+            "description": "max across Z-axis",
+            "command-line-flag": "-Zmax"
+        },
+        {
+            "id": "Zmaxn",
+            "name": "Zmaxn",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Zmaxn]",
+            "description": "time index of max across Z-axis",
+            "command-line-flag": "-Zmaxn"
+        },
+        {
+            "id": "Zmin",
+            "name": "Zmin",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Zmin]",
+            "description": "min across Z-axis",
+            "command-line-flag": "-Zmin"
+        },
+        {
+            "id": "Zmedian",
+            "name": "Zmedian",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Zmedian]",
+            "description": "median across Z-axis",
+            "command-line-flag": "-Zmedian"
+        },
+        {
+            "id": "Zperc",
+            "name": "Zperc",
+            "optional": true,
+            "type": "Number",
+            "minimum": 0,
+            "maximum": 100,
+            "value-key": "[Zperc]",
+            "description": "nth percentile (0-100) of FULL RANGE across Z-axis",
+            "command-line-flag": "-Zperc"
+        },
+        {
+            "id": "Zar1",
+            "name": "Zar1",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[Zar1]",
+            "description": "Z-axis AR(1) coefficient (use -odt float and probably demean first)",
+            "command-line-flag": "-Zar1"
+        },
+        {
+            "id": "pval",
+            "name": "pval",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[pval]",
+            "description": "Nonparametric uncorrected P-value, assuming timepoints are the permutations; first timepoint is actual (unpermuted) stats image",
+            "command-line-flag": "-pval"
+        },
+        {
+            "id": "pval0",
+            "name": "pval0",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[pval0]",
+            "description": "Same as -pval, but treat zeros as missing data",
+            "command-line-flag": "-pval0"
+        },
+        {
+            "id": "cpval",
+            "name": "cpval",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[cpval]",
+            "description": "Same as -pval, but gives FWE corrected P-values",
+            "command-line-flag": "-cpval"
+        },
+        {
+            "id": "ztop",
+            "name": "ztop",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[ztop]",
+            "description": "Convert Z-stat to (uncorrected) P",
+            "command-line-flag": "-ztop"
+        },
+        {
+            "id": "ptoz",
+            "name": "ptoz",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[ptoz]",
+            "description": "Convert (uncorrected) P to Z",
+            "command-line-flag": "-ptoz"
+        },
+        {
+            "id": "rank",
+            "name": "rank",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[rank]",
+            "description": "Convert data to ranks (over T dim)",
+            "command-line-flag": "-rank"
+        },
+        {
+            "id": "ranknorm",
+            "name": "ranknorm",
+            "optional": true,
+            "type": "Flag",
+            "value-key": "[ranknorm]",
+            "description": "Transform to Normal dist via ranks",
+            "command-line-flag": "-ranknorm"
+        },
+        {
+            "id": "roi",
+            "name": "roi",
+            "optional": true,
+            "type": "Number",
+            "list": true,
+            "min-list-entries": 8,
+            "max-list-entries": 8,
+            "list-separator": " ",
+            "value-key": "[roi]",
+            "description": "<xmin> <xsize> <ymin> <ysize> <zmin> <zsize> <tmin> <tsize> : zero outside roi (using voxel coordinates). Inputting -1 for a size will set it to the full image extent for that dimension.",
+            "command-line-flag": "-roi"
+        },
+        {
+            "id": "bptf",
+            "name": "bptf",
+            "optional": true,
+            "type": "Number",
+            "list": true,
+            "min-list-entries": 2,
+            "max-list-entries": 2,
+            "list-separator": " ",
+            "value-key": "[bptf]",
+            "description": "<hp_sigma> <lp_sigma> : (-t in ip.c) Bandpass temporal filtering; nonlinear highpass and Gaussian linear lowpass (with sigmas in volumes, not seconds); set either sigma<0 to skip that filter",
+            "command-line-flag": "-bptf"
+        },
+        {
+            "id": "roc",
+            "name": "roc",
+            "optional": true,
+            "type": "String",
+            "list": true,
+            "min-list-entries": 4,
+            "max-list-entries": 4,
+            "list-separator": " ",
+            "value-key": "[roc]",
+            "description": "<AROC-thresh> <outfile> [4Dnoiseonly] <truth> : take (normally binary) truth and test current image in ROC analysis against truth. <AROC-thresh> is usually 0.05 and is limit of Area-under-ROC measure FP axis. <outfile> is a text file of the ROC curve (triplets of values: FP TP threshold). If the truth image contains negative voxels these get excluded from all calculations. If <AROC-thresh> is positive then the [4Dnoiseonly] option needs to be set, and the FP rate is determined from this noise-only data, and is set to be the fraction of timepoints where any FP (anywhere) is seen, as found in the noise-only 4d-dataset. This is then controlling the FWE rate. If <AROC-thresh> is negative the FP rate is calculated from the zero-value parts of the <truth> image, this time averaging voxelwise FP rate over all timepoints. In both cases the TP rate is the average fraction of truth=positive voxels correctly found.",
+            "command-line-flag": "-roc"
+        },
+        {
+            "id": "odt",
+            "name": "odt",
+            "optional": true,
+            "type": "String",
+            "value-choices": [
+                "char",
+                "short",
+                "int",
+                "float",
+                "double",
+                "input"
+            ],
+            "value-key": "[odt]",
+            "description": "sets the output datatype ( default is float ). \"input\" will set the datatype to that of the original image",
+            "command-line-flag": "-odt"
+        },
+        {
+            "id": "output_name",
+            "name": "Output file name",
+            "optional": true,
+            "type": "String",
+            "value-key": "[OUTPUT_NAME]"
+        }
+    ],
+    "groups":[
+        {
+                "id": "binary_ops",
+                "name": "Binary operations",
+                "members": [
+                    "addn",
+                    "subn",
+                    "muln",
+                    "divn",
+                    "remn",
+                    "mas",
+                    "thr",
+                    "thrp",
+                    "thrP",
+                    "uthr",
+                    "uthrp",
+                    "uthrP",
+                    "maxn",
+                    "minn",
+                    "seed",
+                    "restart",
+                    "save"
+                ]
+        },
+        {
+            "id": "basic_unary_ops",
+            "name": "Basic unary operations",
+            "members": [
+                "exp",
+                "log",
+                "sin",
+                "cos",
+                "tan",
+                "asin",
+                "acos",
+                "atan",
+                "sqr",
+                "sqrt",
+                "recip",
+                "abs",
+                "bin",
+                "binv",
+                "fillh",
+                "fillh26",
+                "index",
+                "grid",
+                "edge",
+                "tfce",
+                "tfceS",
+                "nan",
+                "nanm",
+                "rand",
+                "randn",
+                "inm",
+                "ing",
+                "range"
+            ]
+        },
+        {
+            "id": "matrix_ops",
+            "name": "Matrix operations",
+            "members": [
+                "tensor_decomp"
+            ]
+        },
+        {
+            "id": "kernel_ops",
+            "name": "Kernel operations",
+            "description": "set BEFORE filtering operation if desired",
+            "members": [
+                "kernel_3D",
+                "kernel_2D",
+                "kernel_box",
+                "kernel_boxv",
+                "kernel_boxv3",
+                "kernel_gauss",
+                "kernel_sphere",
+                "kernel_file"
+            ]
+        },
+        {
+            "id": "spatial_filtering_ops",
+            "name": "Spatial Filtering operations",
+            "description": "N.B. all options apart from -s use the default kernel or that _previously_ specified by -kernel",
+            "members": [
+                "dilM",
+                "dilD",
+                "dilF",
+                "dilall",
+                "ero",
+                "eroF",
+                "fmedian",
+                "fmean",
+                "fmeanu",
+                "s",
+                "subsamp2",
+                "subsamp2offc"
+            ]
+        },
+        {
+            "id": "dimensionality_reduction_ops",
+            "name": "Dimensionality reduction operations",
+            "members": [
+                "Tmean",
+                "Tstd",
+                "Tmax",
+                "Tmaxn",
+                "Tmin",
+                "Tmedian",
+                "Tperc",
+                "Tar1",
+                "Xmean",
+                "Xstd",
+                "Xmax",
+                "Xmaxn",
+                "Xmin",
+                "Xmedian",
+                "Xperc",
+                "Xar1",
+                "Ymean",
+                "Ystd",
+                "Ymax",
+                "Ymaxn",
+                "Ymin",
+                "Ymedian",
+                "Yperc",
+                "Yar1",
+                "Zmean",
+                "Zstd",
+                "Zmax",
+                "Zmaxn",
+                "Zmin",
+                "Zmedian",
+                "Zperc",
+                "Zar1"
+            ]
+        },
+        {
+            "id": "basic_stat_ops",
+            "name": "Basic statistical operations",
+            "members": [
+                "pval",
+                "pval0",
+                "cpval",
+                "ztop",
+                "ptoz",
+                "rank",
+                "ranknorm"
+            ]
+        },
+        {
+            "id": "multi_arg_ops",
+            "name": "Multi-argument operations",
+            "members": [
+                "roi",
+                "bptf",
+                "roc"
+            ]
+        }
+    ],
+    "name": "fslmaths",
+    "output-files": [
+        {
+            "id": "output_file",
+            "name": "Output file",
+            "optional": false,
+            "path-template": "[OUTPUT_NAME]",
+            "value-key": "[OUTPUT_FILE]"
+        }
+    ],
+    "schema-version": "0.5",
+    "tags": {
+        "domain": [
+            "neuroinformatics",
+            "mri"
+        ],
+        "toolbox": "FSL"
+    }
+}
