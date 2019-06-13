@@ -10,6 +10,7 @@ import atexit
 import signal
 import subprocess
 import logging
+import argparse
 #import asyncio remove as was not working. will investigate further
 from threading import Thread
 from psutil import disk_partitions, disk_usage
@@ -176,13 +177,13 @@ def mv2workdir(hierarchy, working_dir, delay=10):
 # Adapted from: https://www.stavros.io/posts/python-fuse-filesystem/
 
 class HierarchicalFs(Operations):
-    def __init__(self, working_dir, whitelist=None, blacklist=None, log='INFO'):
+    def __init__(self, working_dir, log, whitelist=None, blacklist=None):
         
-        numeric_lvl = getattr(logging, log.upper(), None)
+        numeric_lvl = getattr(logging, log.upper())
 
         logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s',
                             datefmt='%d/%m/%Y %I:%M:%S %p',
-                            level=logging.DEBUG)
+                            level=numeric_lvl)
         logging.info("Setting up storage")
         self.storage = avail_fs(working_dir=working_dir, whitelist=whitelist) 
         self.possible_fs = self.storage.keys()
@@ -460,16 +461,29 @@ class HierarchicalFs(Operations):
         return self.flush(path, fh)
 
 
-def main(mountpoint, wd, whitelist=None):
-    
-    FUSE(HierarchicalFs(os.path.abspath(wd), whitelist=whitelist, log='DEBUG'),
-         mountpoint, nothreads=False, foreground=True,
+def main(fuse_dir, save_dir, log, whitelist=None, blacklist=None):
+    FUSE(HierarchicalFs(os.path.abspath(save_dir),
+         log=log, whitelist=whitelist, blacklist=blacklist),
+         fuse_dir, nothreads=False, foreground=True,
          big_writes=True, max_read=262144, max_write=262144)
 
 if __name__ == '__main__':
 
-    if len(sys.argv) > 3:
-        main(sys.argv[1], sys.argv[2], sys.argv[3])
-    else:
-        main(sys.argv[1], sys.argv[2])
+    parser = argparse.ArgumentParser()
+    parser.add_argument('fuse_dir', type=str,
+                        help="Empty directory to mount FUSE" )
+    parser.add_argument('final_dir', type=str,
+                        help="Shared directory to flush all application data to")
+    parser.add_argument('-w', '--whitelist', type=str, default=None,
+                        help="file that contains desired mountpoints")
+    parser.add_argument('-b', '--blacklist', type=str, default=None,
+                        help='file that contains mountpoints to ignore')
+    parser.add_argument('-l', '--loglevel',
+                        choices=['debug', 'info', 'warning',
+                                 'error', 'critical'], default='info',
+                        help="application log level")
+    args = parser.parse_args()
+
+    main(args.fuse_dir, args.final_dir, args.loglevel,
+         args.whitelist, args.blacklist)
 
