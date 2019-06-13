@@ -9,6 +9,7 @@ import stat
 import atexit
 import signal
 import subprocess
+import logging
 #import asyncio remove as was not working. will investigate further
 from threading import Thread
 from psutil import disk_partitions, disk_usage
@@ -149,7 +150,7 @@ def avail_fs(working_dir=os.getcwd(), possible_fs=None, whitelist=None,
 
     return storage
 
-def mv2workdir(hierarchy, working_dir, delay=5):
+def mv2workdir(hierarchy, working_dir, delay=10):
     #TODO: improve policy
     # remove file with oldest last access time
     while True:
@@ -175,16 +176,21 @@ def mv2workdir(hierarchy, working_dir, delay=5):
 # Adapted from: https://www.stavros.io/posts/python-fuse-filesystem/
 
 class HierarchicalFs(Operations):
-    def __init__(self, working_dir, whitelist=None, blacklist=None):
+    def __init__(self, working_dir, whitelist=None, blacklist=None, log='INFO'):
+        
+        numeric_lvl = getattr(logging, log.upper(), None)
 
-        #print("INFO: Setting up storage")
+        logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s',
+                            datefmt='%d/%m/%Y %I:%M:%S %p',
+                            level=logging.DEBUG)
+        logging.info("Setting up storage")
         self.storage = avail_fs(working_dir=working_dir, whitelist=whitelist) 
         self.possible_fs = self.storage.keys()
         self.hierarchy = self.sorted_storage()
 
         #print("\n".join("{0}: {1}".format(k, v) for k,v in self.storage.items()))
 
-        #print("INFO: Storage hierarchy: ", " -> ".join(self.hierarchy))
+        logging.debug("Storage hierarchy: {}".format(" -> ".join(self.hierarchy)))
 
         self.working_dir = working_dir
 
@@ -192,6 +198,7 @@ class HierarchicalFs(Operations):
         signal.signal(signal.SIGTERM, self.cleanup)
         signal.signal(signal.SIGINT, self.cleanup)
 
+        logging.debug("Starting up async thread to flush")
         self.thread = Thread(target=mv2workdir, args=(self.hierarchy, self.working_dir))
         self.thread.setDaemon(True)
         self.thread.start()
@@ -267,7 +274,7 @@ class HierarchicalFs(Operations):
 
                     if available_mem < available:
                         available = available_mem
-                    #print("INFO: Available space", available)
+                    logging.debug("Available space {}".format(available))
                 except Exception as e:
                     pass
                     #print(str(e))
@@ -275,19 +282,19 @@ class HierarchicalFs(Operations):
                 #print(mount, disk_usage(mount).free)
                 return mount
 
-        #print("ERROR: Not enough space on any device")
+        logging.error("Not enough space on any device")
         #sys.exit(1)
 
 
     def cleanup(self):
-        #print('***Cleaning up FUSE fs***')
+        logging.info('***Cleaning up FUSE fs***')
         for mount in self.hierarchy:
             if mount != self.working_dir:
                 for f in os.listdir(mount):
                     fp = os.path.join(mount, f)
 
                     if f not in os.listdir(self.working_dir): 
-                        #print('Moving file', fp, '-->', self.working_dir)
+                        logging.info('Moving file {} --> {}'.format(fp, self.working_dir))
                         move(os.path.join(mount, f), self.working_dir)
 
     
@@ -318,7 +325,7 @@ class HierarchicalFs(Operations):
         else:
             st = os.lstat(full_path)
             # TODO: perhaps handle pipeline execution here
-            #print("Error: {} does not exist.".format(full_path))
+            logging.error("{} does not exist.".format(full_path))
         return dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
                      'st_gid', 'st_mode', 'st_mtime', 'st_nlink', 'st_size',
                      'st_uid', 'st_blocks'))
@@ -353,7 +360,7 @@ class HierarchicalFs(Operations):
     # modified
     def rmdir(self, path):
         spath = path.lstrip("/")
-        #print("INFO: Removing directory", spath)
+        logging.info("Removing directory", spath)
         for d in self.hierarchy:
             os.rmdir(os.path.join(d, spath))
         #full_path = self._full_path(path)
@@ -362,7 +369,7 @@ class HierarchicalFs(Operations):
     # modified
     def mkdir(self, path, mode):
         spath = path.lstrip("/")
-        #print("INFO: Creating directory", spath)
+        logging.info("Creating directory", spath)
         for d in self.hierarchy:
             os.mkdir(os.path.join(d, spath), mode)
 
@@ -393,13 +400,13 @@ class HierarchicalFs(Operations):
     # ============
 
     def open(self, path, flags):
-        #print("INFO: Opening file", path)
+        logging.info("Opening file {}".format(path))
         full_path = self._full_path(path)
         return os.open(full_path, flags)
 
     def create(self, path, mode, fi=None):
         full_path = self._full_path(path)
-        #print("INFO: Creating file", full_path)
+        logging.info("Creating file {}".format(full_path))
         return os.open(full_path, os.O_WRONLY | os.O_CREAT, mode)
 
     def read(self, path, length, offset, fh):
@@ -424,7 +431,7 @@ class HierarchicalFs(Operations):
 
             if fp != new_fp:
                 #TODO: test what happens when there are consecutive failures
-                #print('Out of memory: ', fp, '--->', new_fp)
+                logging.warning('Out of memory: {} --->'.format(fp, new_fp))
                 move(fp, new_fp)
                 new_fh = os.open(new_fp, os.O_CREAT | os.O_RDWR)
                 os.dup2(new_fh, fh)
@@ -434,19 +441,19 @@ class HierarchicalFs(Operations):
 
     
     def truncate(self, path, length, fh=None):
-        #print("INFO: Truncating file", path)
+        logging.info("Truncating file {}".format(path))
         full_path = self._full_path(path)
         with open(full_path, 'r+') as f:
             f.truncate(length)
 
     def flush(self, path, fh):
-        #print("INFO: Flushing file", path)
+        logging.info("Flushing file {}".format(path))
         return os.fsync(fh)
 
     def release(self, path, fh):
-        #print('WARNING: File to be converted to read-only')
-        #print('INFO: Closing file')
+        logging.warning('File {} to be converted to read-only'.format(path))
         os.chmod(fh, stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
+        logging.info('Closing file {}'.format(path))
         return os.close(fh)
 
     def fsync(self, path, fdatasync, fh):
@@ -455,8 +462,9 @@ class HierarchicalFs(Operations):
 
 def main(mountpoint, wd, whitelist=None):
     
-    FUSE(HierarchicalFs(os.path.abspath(wd), whitelist=whitelist), mountpoint, nothreads=True, foreground=True,
-                        big_writes=True, max_read=262144, max_write=262144)
+    FUSE(HierarchicalFs(os.path.abspath(wd), whitelist=whitelist, log='DEBUG'),
+         mountpoint, nothreads=False, foreground=True,
+         big_writes=True, max_read=262144, max_write=262144)
 
 if __name__ == '__main__':
 
