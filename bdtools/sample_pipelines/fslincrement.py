@@ -35,8 +35,8 @@ elif sys.argv[1] == "tmpfs":
 else:
     fs = lustre
 
-num_its = sys.argv[2]
-num_threads = sys.argv[3]
+num_its = int(sys.argv[2])
+num_threads = int(sys.argv[3])
 maths = function("fsl_maths.json")
 
 init_splits = ['bigbrain_0_0_0.nii', 'bigbrain_0_0_1735.nii',
