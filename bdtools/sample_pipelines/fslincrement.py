@@ -16,6 +16,7 @@ p = subprocess.Popen("sudo sysctl vm.drop_caches=3", shell=True, stdout=subproce
 (out, err) = p.communicate()
 
 start = time()
+
 def increment(maths, curr_in, t_id, it=5):
     for i in range(it):
         curr_out = "{0}/inc{1}-{2}.nii".format(fs, t_id, i)
@@ -34,6 +35,8 @@ elif sys.argv[1] == "tmpfs":
 else:
     fs = lustre
 
+num_its = sys.argv[2]
+num_threads = sys.argv[3]
 maths = function("fsl_maths.json")
 
 init_splits = ['bigbrain_0_0_0.nii', 'bigbrain_0_0_1735.nii',
@@ -41,10 +44,10 @@ init_splits = ['bigbrain_0_0_0.nii', 'bigbrain_0_0_1735.nii',
                'bigbrain_0_2010_0.nii', 'bigbrain_0_2010_1735.nii']
 
 threads = list()
-for index in range(2):
+for index in range(num_threads):
     
     curr_in = op.join(fs, init_splits[index])
-    x = threading.Thread(target=increment, args=(maths, curr_in, index))
+    x = threading.Thread(target=increment, args=(maths, curr_in, index, num_its))
     threads.append(x)
     x.start()
 
