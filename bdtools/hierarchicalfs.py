@@ -545,7 +545,7 @@ if __name__ == '__main__':
                         help="application log level")
     parser.add_argument('-f', '--foreground', action='store_true',
                         default=False, help='run fs in the foreground')
-    parser.add_argument('-t', '--nothreads', action='store_true', default=False
+    parser.add_argument('-t', '--nothreads', action='store_true', default=False,
                         help='Do not use multithreading in fs')
     args = parser.parse_args()
 
