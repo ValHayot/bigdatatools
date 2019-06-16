@@ -543,6 +543,10 @@ if __name__ == '__main__':
                         choices=['debug', 'info', 'warning',
                                  'error', 'critical'], default='info',
                         help="application log level")
+    parser.add_argument('-f', '--foreground', action='store_true',
+                        default=False, help='run fs in the foreground')
+    parser.add_argument('-t', '--nothreads', action='store_true', default=False
+                        help='Do not use multithreading in fs')
     args = parser.parse_args()
 
     main(args.fuse_dir, args.final_dir, args.loglevel,
