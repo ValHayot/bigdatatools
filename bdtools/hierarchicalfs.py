@@ -522,10 +522,11 @@ class HierarchicalFs(Operations):
         return self.flush(path, fh)
 
 
-def main(fuse_dir, save_dir, log, whitelist=None, blacklist=None):
+def main(fuse_dir, save_dir, log, whitelist=None, blacklist=None,
+         foreground=False, nothreads=True):
     FUSE(HierarchicalFs(os.path.abspath(save_dir),
          log=log, whitelist=whitelist, blacklist=blacklist),
-         fuse_dir, nothreads=True, foreground=True,
+         fuse_dir, nothreads=nothreads, foreground=foreground,
          big_writes=True, max_read=262144, max_write=262144)
 
 if __name__ == '__main__':
@@ -550,5 +551,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     main(args.fuse_dir, args.final_dir, args.loglevel,
-         args.whitelist, args.blacklist)
+         args.whitelist, args.blacklist, args.foreground, args.nothreads)
 
