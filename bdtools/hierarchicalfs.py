@@ -13,13 +13,13 @@ import logging
 import argparse
 #import asyncio remove as was not working. will investigate further
 from threading import Thread
-from psutil import disk_partitions, disk_usage
+from psutil import disk_partitions, disk_usage, virtual_memory
 from blkinfo import BlkDiskInfo
 from numpy import asarray
 from getpass import getuser
 from socket import gethostname
 from time import time, sleep
-from shutil import move
+from shutil import move, copy2, rmtree
 
 from refuse.high import FUSE, FuseOSError, Operations
 
@@ -33,7 +33,8 @@ def add_el(d, k, v):
 
 
 def get_mount(all_partitions, fp):
-    return max([(p.mountpoint, p.fstype, os.path.basename(p.device) if p.device.startswith("/") else p.device)
+    return max([(p.mountpoint, p.fstype, os.path.basename(p.device)
+                 if p.device.startswith("/") else p.device)
                 for p in all_partitions
                 if p.mountpoint in fp],
                key=lambda x: len(x[0]))
@@ -90,6 +91,8 @@ def avail_fs(working_dir=os.getcwd(), possible_fs=None, whitelist=None,
     whitelist = wb_contents(whitelist, 'whitelist') 
     blacklist = wb_contents(blacklist, 'blacklist') 
 
+    wd_mount, wd_fs, wd_pd = get_mount(all_partitions, working_dir)
+
     for d in all_partitions:
         if os.access(d.mountpoint, os.R_OK) and os.access(d.mountpoint, os.W_OK):
             device = os.path.basename(d.device)
@@ -108,10 +111,13 @@ def avail_fs(working_dir=os.getcwd(), possible_fs=None, whitelist=None,
             if blacklist is not None and mountpoint in blacklist:
                 continue
 
-            if mountpoint != working_dir:
+            if mountpoint != wd_mount:
                 mountpoint = os.path.join(mountpoint,
                                      '{0}-{1}'.format(gethostname(), getuser()))
+            else:
+                continue
 
+            
             if (d.fstype != 'tmpfs' and 'lustre' not in d.fstype
                 and os.path.basename(device) in disk_tree):
                 pd = parent_drives(disk_tree, device)
@@ -124,10 +130,10 @@ def avail_fs(working_dir=os.getcwd(), possible_fs=None, whitelist=None,
              for el in v if el == working_dir]) == 0):
 
         if os.access(working_dir, os.R_OK) and os.access(working_dir, os.W_OK):
-            parent = get_mount(all_partitions, working_dir)
 
-            pd = parent_drives(disk_tree, parent[2])
-            fs = parent[1]
+            pd = parent_drives(disk_tree, wd_pd)
+            fs = wd_fs
+
             if fs != 'lustre':
                 set_ssd_hdd(pd, storage, disk_tree, working_dir)
             else:
@@ -151,27 +157,74 @@ def avail_fs(working_dir=os.getcwd(), possible_fs=None, whitelist=None,
 
     return storage
 
-def mv2workdir(hierarchy, working_dir, delay=10):
+
+def get_faccess(hierarchy, working_dir, cp=False):
+    file_access = {}
+    for mount in hierarchy:
+        if mount != working_dir:
+            for dirpath, _, files in os.walk(mount):
+                sd = os.path.relpath(dirpath, mount)
+                for f in files:
+                    if cp and f in os.path.join(working_dir, sd):
+                        continue
+
+                    fp = os.path.join(dirpath, f)
+                    
+                    # only cp if file is readonly
+                    try:
+                        if not os.access(fp, os.W_OK):
+                            file_access[os.path.getatime(fp)] = (fp, sd)
+                    except Exception as e:
+                        logging.debug(str(e))
+
+
+    return file_access
+
+
+def rm_local(hierarchy, working_dir, delay=20, percent=60):
+    init_delay = delay
+    while True:
+        if virtual_memory().percent > percent:
+            delay = 5
+        else:
+            delay = init_delay
+
+        sleep(delay)
+        file_access = get_faccess(hierarchy, working_dir)
+
+        if len(file_access.keys()) > 0:
+            fp, subdir = file_access[sorted(file_access.keys())[0]]
+            fn = os.path.basename(fp)
+
+            out_fn = os.path.join(working_dir, subdir, fn)
+            
+            if (os.path.isfile(out_fn) and
+                (os.path.getsize(out_fn) == os.path.getsize(fp))):
+                os.remove(fp)
+
+
+def cp2wd(hierarchy, working_dir, delay=0):
     #TODO: improve policy
     # remove file with oldest last access time
     while True:
         sleep(delay)
-        file_access = {}
-        for mount in hierarchy:
-            if mount != working_dir:
-                for dirpath, _, files in os.walk(mount):
-                    for f in files:
-                        fp = os.path.join(dirpath, f)
-                        
-                        # only cp if file is readonly
-                        if not os.access(fp, os.W_OK):
-                            file_access[os.path.getatime(fp)] = (fp, os.path.relpath(dirpath, mount))
+        file_access = get_faccess(hierarchy, working_dir, cp=True)
 
-        if len(file_access.keys()) > 1:
-            fp, subdir = file_access[sorted(file_access.keys())[0]]
-            out_dir = os.path.join(working_dir, subdir) 
-            #print('Moving file', fp, '-->', out_dir)
-            move(fp, out_dir)
+        if len(file_access.keys()) > 0:
+
+            for fa, data in sorted(file_access.items(), key=lambda x: x[0]):
+                fp = data[0]
+                subdir = data[1]
+                out_fp = os.path.join(working_dir, subdir.rstrip('.'),
+                                       os.path.basename(fp))
+
+                #try:
+                if not os.path.isfile(out_fp):
+                    logging.info('Moving file {} ---> {}'.format(fp, out_fp))
+                    copy2(fp, out_fp)
+                #except Exception as e:
+                #    logging.debug('File {} move failed'.format(fp))
+                #    logging.debug(str(e))
 
 
 # Adapted from: https://www.stavros.io/posts/python-fuse-filesystem/
@@ -200,7 +253,12 @@ class HierarchicalFs(Operations):
         signal.signal(signal.SIGINT, self.cleanup)
 
         logging.debug("Starting up async thread to flush")
-        self.thread = Thread(target=mv2workdir, args=(self.hierarchy, self.working_dir))
+        self.thread = Thread(target=cp2wd, args=(self.hierarchy, self.working_dir))
+        self.thread.setDaemon(True)
+        self.thread.start()
+
+        logging.debug("Starting up async thread to remove old files")
+        self.thread = Thread(target=rm_local, args=(self.hierarchy, self.working_dir))
         self.thread.setDaemon(True)
         self.thread.start()
         #self.loop = asyncio.get_event_loop()
@@ -297,6 +355,9 @@ class HierarchicalFs(Operations):
                     if f not in os.listdir(self.working_dir): 
                         logging.info('Moving file {} --> {}'.format(fp, self.working_dir))
                         move(os.path.join(mount, f), self.working_dir)
+
+                logging.debug("Removing directory {}".format(mount))
+                rmtree(mount)
 
     
     # Filesystem methods
@@ -464,7 +525,7 @@ class HierarchicalFs(Operations):
 def main(fuse_dir, save_dir, log, whitelist=None, blacklist=None):
     FUSE(HierarchicalFs(os.path.abspath(save_dir),
          log=log, whitelist=whitelist, blacklist=blacklist),
-         fuse_dir, nothreads=False, foreground=True,
+         fuse_dir, nothreads=True, foreground=True,
          big_writes=True, max_read=262144, max_write=262144)
 
 if __name__ == '__main__':
