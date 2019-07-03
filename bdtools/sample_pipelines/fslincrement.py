@@ -4,12 +4,12 @@ from time import time
 import sys
 import threading
 import subprocess
-from os import path as op
+from os import linesep, path as op
 
 
-fuse = "sharedfs"
+fuse = "/home/v_hayots/bigdatatools/sharedfs"
 lustre = "/data/vhayots/nonshare"
-tmpfs = "/tmp/inc"
+tmpfs = "/dev/shm/nonshare"
 fs = None
 
 p = subprocess.Popen("sudo sysctl vm.drop_caches=3", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -37,9 +37,10 @@ else:
 
 num_its = int(sys.argv[2])
 num_threads = int(sys.argv[3])
-maths = function("fsl_maths.json")
+block_size = sys.argv[4]
+maths = function("/home/v_hayots/bigdatatools/fsl_maths.json")
 
-init_splits = ['bigbrain_0_0_0.nii', 'bigbrain_0_0_1735.nii',
+init_splits = ['bigbrain_25G.nii', 'bigbrain_0_0_1735.nii',
                'bigbrain_0_1005_0.nii','bigbrain_0_1005_1735.nii',
                'bigbrain_0_2010_0.nii', 'bigbrain_0_2010_1735.nii']
 
@@ -53,6 +54,11 @@ for index in range(num_threads):
 
 for index, thread in enumerate(threads):
     thread.join()
+
+of = 'fslinc_{}_t{}_i{}_bs{}.out'.format(sys.argv[1], num_threads, num_its, block_size)
+
+with open(of, 'a+') as f:
+    f.write(str(time()-start) + linesep)
 
 print("Total execution time:", time() - start)
 
