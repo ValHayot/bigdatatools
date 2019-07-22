@@ -6,6 +6,7 @@ from os import getcwd, path as op, remove
 from psutil import disk_usage
 from getpass import getuser
 from socket import gethostname
+import subprocess
 
 # NOTE: tests currently assume my workstation configuration
 """
@@ -23,6 +24,9 @@ exp_sstorage = [
     op.join("/run/user/1000", tmp_dir),
     getcwd(),
 ]
+
+shared = op.join(curr_dir, "sharedfs")
+sea_cmd = ["python", op.join(curr_dir, "bdtools/hfs.py"), shared, "-o", "root=/data/vhayots/workdir", "-o", "big_writes", "-o", "log=DEBUG", "-o", "auto_unmount"]
 
 
 def flatten_dict(l):
@@ -71,3 +75,43 @@ def test_available_fs():
     ], avail_fs
 
     # TODO: test providing whitelist as a file
+
+
+def test_write_file():
+    p = subprocess.Popen(sea_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = p.communicate()
+    
+    out_file = op.join(shared, "testwrite.out")
+    file_txt = "Hello World!"
+
+    with open(out_file, "w") as f:
+        f.write(file_txt)
+
+    assert(op.isfile(out_file))
+
+    with open(out_file, "r") as f:
+        output = f.read()
+        assert(output == file_txt), output
+
+    remove(out_file)
+    p.kill()
+
+
+def test_read_file():
+    pass
+
+
+def test_copy_file():
+    pass
+
+
+def test_create_dir():
+    pass
+
+
+def test_write_to_dir():
+    pass
+
+
+def test_remove_dir():
+    pass
