@@ -2,6 +2,7 @@
 import pytest
 from bdtools import hfs as sea
 import nibabel as nib
+import numpy as np
 from os import getcwd, path as op, remove
 from psutil import disk_usage
 from getpass import getuser
@@ -26,7 +27,14 @@ exp_sstorage = [
 ]
 
 shared = op.join(curr_dir, "sharedfs")
-sea_cmd = ["python", op.join(curr_dir, "bdtools/hfs.py"), shared, "-o", "root=/data/vhayots/workdir", "-o", "big_writes", "-o", "log=DEBUG", "-o", "auto_unmount"]
+work = op.join(curr_dir, "workdir")
+sea_cmd = ["python", op.join(curr_dir, "bdtools/hfs.py"), shared, "-o", "root={}".format(work), "-o", "big_writes", "-o", "log=DEBUG", "-o", "auto_unmount"]
+test_file = "bigbrain_1538_1206_2082.nii"
+
+
+# Start FS
+p = subprocess.Popen(sea_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+out, err = p.communicate()
 
 
 def flatten_dict(l):
@@ -78,9 +86,6 @@ def test_available_fs():
 
 
 def test_write_file():
-    p = subprocess.Popen(sea_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    out, err = p.communicate()
-    
     out_file = op.join(shared, "testwrite.out")
     file_txt = "Hello World!"
 
@@ -94,11 +99,18 @@ def test_write_file():
         assert(output == file_txt), output
 
     remove(out_file)
-    p.kill()
 
 
 def test_read_file():
-    pass
+    im_fuse = nib.load(op.join(shared, test_file))
+    im_work = nib.load(op.join(work, test_file))
+
+    data_fuse = im_fuse.get_data()
+    data_work = im_fuse.get_data()
+
+    header_fuse = str(data_fuse)
+    header_work = str(data_work)
+    assert(np.array_equal(data_fuse, data_work) and header_fuse == header_work)
 
 
 def test_copy_file():
