@@ -3,6 +3,8 @@ import pytest
 from bdtools import hfs as sea
 import nibabel as nib
 import numpy as np
+import shutil
+import hashlib
 from os import getcwd, path as op, remove
 from psutil import disk_usage
 from getpass import getuser
@@ -28,7 +30,19 @@ exp_sstorage = [
 
 shared = op.join(curr_dir, "sharedfs")
 work = op.join(curr_dir, "workdir")
-sea_cmd = ["python", op.join(curr_dir, "bdtools/hfs.py"), shared, "-o", "root={}".format(work), "-o", "big_writes", "-o", "log=DEBUG", "-o", "auto_unmount"]
+sea_cmd = [
+    "python",
+    op.join(curr_dir, "bdtools/hfs.py"),
+    shared,
+    "-o",
+    "root={}".format(work),
+    "-o",
+    "big_writes",
+    "-o",
+    "log=DEBUG",
+    "-o",
+    "auto_unmount",
+]
 test_file = "bigbrain_1538_1206_2082.nii"
 
 
@@ -39,6 +53,11 @@ out, err = p.communicate()
 
 def flatten_dict(l):
     return [path for fs_list in l.values() for path in fs_list]
+
+
+def get_f_md5(fn):
+    with open(fn, "rb") as f:
+        return hashlib.md5(f.read()).hexdigest()
 
 
 def test_available_fs():
@@ -92,11 +111,11 @@ def test_write_file():
     with open(out_file, "w") as f:
         f.write(file_txt)
 
-    assert(op.isfile(out_file))
+    assert op.isfile(out_file)
 
     with open(out_file, "r") as f:
         output = f.read()
-        assert(output == file_txt), output
+        assert output == file_txt, output
 
     remove(out_file)
 
@@ -110,11 +129,19 @@ def test_read_file():
 
     header_fuse = str(data_fuse)
     header_work = str(data_work)
-    assert(np.array_equal(data_fuse, data_work) and header_fuse == header_work)
+    assert np.array_equal(data_fuse, data_work) and header_fuse == header_work
 
 
 def test_copy_file():
-    pass
+    im = "img1.nii"
+    sample_file = op.join(curr_dir, "bdtools/tests/sample_data", im)
+    fuse_file = op.join(curr_dir, shared, im)
+    shutil.copy2(sample_file, fuse_file)
+
+    orig_md5 = get_f_md5(sample_file)
+    fuse_md5 = get_f_md5(fuse_file)
+
+    remove(fuse_file)
 
 
 def test_create_dir():
