@@ -42,6 +42,7 @@ sea_cmd = [
     "log=DEBUG",
     "-o",
     "auto_unmount",
+    "-s"
 ]
 test_file = "bigbrain_1538_1206_2082.nii"
 
@@ -142,6 +143,32 @@ def test_copy_file():
     fuse_md5 = get_f_md5(fuse_file)
 
     remove(fuse_file)
+
+
+def test_write_fail():
+    seafs = sea.HFS()
+    seafs.start()
+
+    i_topfs = seafs._top_fs()
+    n_topfs = seafs._top_fs()
+
+    input_fn = op.join(work, test_file)
+    input_md5 = get_f_md5(input_fn)
+
+    counter = 1
+    while i_topfs == n_topfs:
+        output_fn = op.join(shared, "img{}.nii".format(counter))
+        shutil.copy2(input_fn, output_fn)
+
+        output_md5 = get_f_md5(output_fn)
+        assert(input_md5 == output_md5)
+
+        counter += 1
+        n_topfs = seafs._top_fs()
+
+    # cleanup
+    for i in range(1, counter):
+        remove(op.join(shared, "img{}.nii".format(i)))
 
 
 def test_create_dir():

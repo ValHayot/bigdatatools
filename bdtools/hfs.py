@@ -185,6 +185,13 @@ class HFS(Fuse):
 
     def start(self):
 
+        # Only necessary for testing purposed
+        if not hasattr(self, 'log'):
+            self.log = "DEBUG"
+
+        if not hasattr(self, 'root'):
+            self.root = os.getcwd()
+
         numeric_lvl = getattr(logging, self.log.upper())
 
         fmt = '%(asctime)s:%(levelname)s:%(message)s'
