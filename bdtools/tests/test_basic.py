@@ -5,7 +5,7 @@ import nibabel as nib
 import numpy as np
 import shutil
 import hashlib
-from os import getcwd, path as op, remove
+from os import getcwd, path as op, remove, mkdir
 from psutil import disk_usage
 from getpass import getuser
 from socket import gethostname
@@ -171,8 +171,22 @@ def test_write_fail():
         remove(op.join(shared, "img{}.nii".format(i)))
 
 
-def test_create_dir():
-    pass
+def test_mkdir():
+    dirname = "tmpdir"
+    dirpath = op.join(shared, dirname)
+    mkdir(dirpath)
+    assert op.isdir(dirpath)
+
+    avail_fs = sea.avail_fs()
+    all_storage = flatten_dict(avail_fs)
+
+    for s in all_storage:
+        full_path = op.join(s, dirname)
+
+        if s == getcwd():
+            full_path = op.join(work, dirname) 
+
+        assert(op.isdir(full_path))
 
 
 def test_write_to_dir():

@@ -330,7 +330,7 @@ class HFS(Fuse):
         full_path = self._full_path(path)
 
         for p in full_path:
-            os.rmdir(self._full_path(p))
+            os.rmdir(p)
 
     def symlink(self, path, path1):
         full_path1 = self._full_path(path1)
@@ -376,8 +376,9 @@ class HFS(Fuse):
         os.mknod(fp[0], mode, dev)
 
     def mkdir(self, path, mode):
-        fp = self._full_path(path)
-        os.mkdir(fp[0], mode)
+        for storage in self.hierarchy:
+            fp_dir = os.path.join(storage, path.lstrip('/'))
+            os.mkdir(fp_dir, mode)
 
     def utime(self, path, times):
         fp = self._full_path(path)
