@@ -204,4 +204,19 @@ def test_write_to_dir():
 
 
 def test_remove_dir():
-    pass
+    dirname = "tmpdir"
+    dirpath = op.join(shared, "tmpdir")
+    shutil.rmtree(dirpath)
+
+    assert not op.isdir(dirpath)
+
+    avail_fs = sea.avail_fs()
+    all_storage = flatten_dict(avail_fs)
+
+    for s in all_storage:
+        full_path = op.join(s, dirname)
+
+        if s == getcwd():
+            full_path = op.join(work, dirname) 
+
+        assert(not op.isdir(full_path))
