@@ -190,7 +190,17 @@ def test_mkdir():
 
 
 def test_write_to_dir():
-    pass
+    dirpath = op.join(shared, "tmpdir")
+    fn = op.join(dirpath, "helloworld.txt")
+    f_txt = "Hello World!"
+
+    with open(fn, 'w') as f:
+        f.write(f_txt)
+
+    assert op.isfile(fn)
+
+    with open(fn, 'r') as f:
+        assert(f.read() == f_txt)
 
 
 def test_remove_dir():
