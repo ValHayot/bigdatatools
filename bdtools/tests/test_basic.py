@@ -61,6 +61,26 @@ def get_f_md5(fn):
         return hashlib.md5(f.read()).hexdigest()
 
 
+avail_fs = sea.avail_fs()
+all_storage = flatten_dict(avail_fs)
+
+
+def verify_dir(dn):
+
+    dirpath = op.join(shared, dn)
+    mkdir(dirpath)
+    assert op.isdir(dirpath)
+
+    for s in all_storage:
+        full_path = op.join(s, dn)
+
+        if s == getcwd():
+            full_path = op.join(work, dn) 
+
+        assert(op.isdir(full_path))
+
+
+
 def test_available_fs():
     """ Test to ensure that available storage is appropriately detected
 
@@ -173,20 +193,7 @@ def test_write_fail():
 
 def test_mkdir():
     dirname = "tmpdir"
-    dirpath = op.join(shared, dirname)
-    mkdir(dirpath)
-    assert op.isdir(dirpath)
-
-    avail_fs = sea.avail_fs()
-    all_storage = flatten_dict(avail_fs)
-
-    for s in all_storage:
-        full_path = op.join(s, dirname)
-
-        if s == getcwd():
-            full_path = op.join(work, dirname) 
-
-        assert(op.isdir(full_path))
+    verify_dir(dirname)
 
 
 def test_write_to_dir():
@@ -201,6 +208,14 @@ def test_write_to_dir():
 
     with open(fn, 'r') as f:
         assert(f.read() == f_txt)
+
+
+def test_nested_dir():
+    dirname = "tmpdir/subdir"
+    verify_dir(dirname)
+
+    dirname = op.join(dirname, "subsubdir")
+    verify_dir(dirname)
 
 
 def test_remove_dir():
@@ -220,3 +235,4 @@ def test_remove_dir():
             full_path = op.join(work, dirname) 
 
         assert(not op.isdir(full_path))
+        

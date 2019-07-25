@@ -318,8 +318,16 @@ class HFS(Fuse):
     def readdir(self, path, offset):
         full_path = self._full_path(path)
 
+        folder_dirs = []
         for p in full_path:
             for e in os.listdir(p):
+
+                # Solution to make directories only appear once despite being
+                # in multiple locations
+                if os.path.isdir(os.path.join(p, e)):
+                    if e in folder_dirs:
+                        continue
+                    folder_dirs.append(e)
                 yield fuse.Direntry(e)
 
     def unlink(self, path):
@@ -330,6 +338,7 @@ class HFS(Fuse):
         full_path = self._full_path(path)
 
         for p in full_path:
+            self.logger.debug("Removing directory {}".format(p))
             os.rmdir(p)
 
     def symlink(self, path, path1):
