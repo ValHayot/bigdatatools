@@ -439,8 +439,8 @@ class HFS(Fuse):
             - f_ffree - nunber of free file inodes
         """
 
-        fp = self._full_path(".")
-        return os.statvfs(fp[0])
+        # Return the status of the root directory only
+        return os.statvfs(self.root)
 
     def fsinit(self):
         os.chdir(self.root)
