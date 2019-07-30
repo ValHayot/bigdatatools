@@ -23,7 +23,7 @@ from getpass import getuser
 from socket import gethostname
 from time import time, sleep
 from shutil import move, copy2, rmtree
-from threading import Lock
+from threading import Lock, Thread
 
 if not hasattr(fuse, '__version__'):
     raise RuntimeError("your fuse-py doesn't know of fuse.__version__, probably it's too old.")
@@ -174,6 +174,8 @@ def avail_fs(working_dir=os.getcwd(), possible_fs=None, whitelist=None,
     return storage
 
 
+
+
 class HFS(Fuse):
 
     def __init__(self, *args, **kw):
@@ -229,6 +231,11 @@ class HFS(Fuse):
         #atexit.register(self._cleanup)
         #signal.signal(signal.SIGTERM, self._cleanup)
         #signal.signal(signal.SIGINT, self._cleanup)
+
+        logging.debug("Starting up async thread to flush")
+        self.thread = Thread(target=self._cp2wd)
+        self.thread.setDaemon(True)
+        self.thread.start()
 
 
     # modified
@@ -306,6 +313,71 @@ class HFS(Fuse):
                 self.logger.debug("Removing directory {}".format(mount))
                 rmtree(mount)
         sys.exit(1)
+        
+
+    def _get_faccess(self, cp=False):
+        file_access = {}
+        for mount in self.hierarchy:
+            if mount != self.root:
+                for dirpath, _, files in os.walk(mount):
+                    sd = os.path.relpath(dirpath, mount)
+                    for f in files:
+                        if cp and f in os.path.join(self.root, sd):
+                            continue
+
+                        fp = os.path.join(dirpath, f)
+                        
+                        # only cp if file is readonly
+                        try:
+                            if not os.access(fp, os.W_OK):
+                                file_access[os.path.getatime(fp)] = (fp, sd)
+                        except Exception as e:
+                            self.logger.debug(str(e))
+
+
+        return file_access
+
+
+    def _get_outdir(self, fp):
+        filesize = os.stat(fp).st_size
+
+        secondary_storage = ['ssd', 'hdd', 'lustre']
+        for k,v in self.storage.items():
+            for mount in v:
+                if mount in fp:
+                    if k not in secondary_storage:
+                        for storage in secondary_storage:
+                            if self.root in self.storage[storage]:
+                                return self.root
+                            for st in self.storage[storage]:
+                                if disk_usage(st).free >= filesize:
+                                    return st
+                        
+                    return self.root
+
+
+    def _cp2wd(self, delay=0):
+        #TODO: improve policy
+        # remove file with oldest last access time
+        while True:
+            sleep(delay)
+            file_access = self._get_faccess(cp=True)
+
+            if len(file_access.keys()) > 0:
+                for fa, data in sorted(file_access.items(), key=lambda x: x[0]):
+                    fp = data[0]
+                    subdir = data[1]
+                    out_dir = self._get_outdir(fp)
+                    out_fp = os.path.join(out_dir, subdir.rstrip('.'),
+                                           os.path.basename(fp))
+
+                    #try:
+                    if not os.path.isfile(out_fp) and os.path.isfile(fp):
+                        self.logger.info('Copying file {} ---> {}'.format(fp, out_fp))
+                        copy2(fp, out_fp)
+                    #except Exception as e:
+                    #    logging.debug('File {} move failed'.format(fp))
+                    #    logging.debug(str(e))
 
     def getattr(self, path):
         full_path = self._full_path(path)
@@ -332,7 +404,10 @@ class HFS(Fuse):
 
     def unlink(self, path):
         full_path = self._full_path(path)
-        os.unlink(full_path[0])
+
+        # Remove all occurrences of a given file
+        for p in full_path:
+            os.unlink(p)
 
     def rmdir(self, path):
         full_path = self._full_path(path)
