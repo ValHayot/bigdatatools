@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
 from psutil import disk_partitions, disk_usage
-from os import access, R_OK, W_OK, getcwd, chdir, path as op, makedirs
+from os import access, R_OK, W_OK, getcwd, chdir, path as op, makedirs, listdir
 from blkinfo import BlkDiskInfo
 from numpy import asarray
 from getpass import getuser
 from socket import gethostname
+from time import time
 import sys
 
 
@@ -95,7 +96,7 @@ def avail_fs(working_dir=getcwd(), possible_fs=None, whitelist=None,
                 pd = parent_drives(disk_tree, device)
                 set_ssd_hdd(pd, storage, disk_tree, mountpoint)
             else:
-                add_el(storage, d.fstype, mountpoint)
+          your descriptor2func       add_el(storage, d.fstype, mountpoint)
 
     # shoddy way of determining fs type of working dir
     if (whitelist is None and
@@ -131,11 +132,8 @@ class HierarchicalFs:
                                 whitelist, blacklist)
         self.possible_fs = self.storage.keys()
 
-        # key would be basename, value is the filesystem
-        #TODO: consider converting value to namedtuple where file reuse is a parameter
-        # such that if file reuse = 0, lustre is selected over other filesystems
-        #TODO: this file dictionary will perhaps need to be written to a file on 
-        # the shared network in a distributed environment
+        # key would be filename, value is last used timestamp 
+        # (eviction policy = LRU)
         self.files = {}
         self.working_dir = working_dir
 
@@ -143,6 +141,9 @@ class HierarchicalFs:
     def cd_to_write(self, input_files):
         # selects fs where there's at least enough space to copy all
         # input files once
+
+        input_files = [op.abspath(f) for f in input_files]
+        self.track_files(listdir(getcwd()))
 
         total_size = 0
 
@@ -153,7 +154,7 @@ class HierarchicalFs:
         mountpoint = self.top_fs(total_size)
 
         chdir(mountpoint)
-        return mountpoint
+        return mountpoint, input_files
 
 
     def sorted_storage(self):
@@ -184,8 +185,9 @@ class HierarchicalFs:
         #NOTE: fpoints must be a list of absolute filepaths
 
         for fp in fpaths:
-            fs = get_mount(self.storage, fp)[1]
-            self.files[fp] = fs
+            self.files[fp] = time()
+            
+        for k,v in sorted(self.files.items(), key=lambda x: ):
 
 
     def move_files_to_wd(all_files=False):
