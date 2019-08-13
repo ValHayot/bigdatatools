@@ -7,10 +7,28 @@ import subprocess
 from os import linesep, path as op
 
 
-fuse = "/home/v_hayots/bigdatatools/sharedfs"
-lustre = "/data/vhayots/nonshare"
-tmpfs = "/dev/shm/nonshare"
+fuse = None
+lustre = None
+tmpfs = None
 fs = None
+maths = None
+init_splits = None
+
+def load_env(env):
+    if env == "appliance":
+        fuse = "/home/v_hayots/bigdatatools/sharedfs"
+        lustre = "/data/vhayots/nonshare"
+        tmpfs = "/dev/shm/nonshare"
+        maths = function("/home/v_hayots/bigdatatools/fsl_maths.json")
+        init_splits = ['bigbrain_25G.nii', 'bigbrain_0_0_1735.nii',
+                       'bigbrain_0_1005_0.nii','bigbrain_0_1005_1735.nii',
+                       'bigbrain_0_2010_0.nii', 'bigbrain_0_2010_1735.nii']
+    else:
+        fuse = "/home/valeriehayot/Documents/code/bigdatatools/sharedfs"
+        init_splits = ['bigbrain_0_0_0.nii', 'bigbrain_0_0_1388.nii',
+                       'bigbrain_0_0_2082.nii','bigbrain_0_0_2776.nii',
+                       'bigbrain_0_0_694.nii', 'bigbrain_0_1206_0.nii']
+        maths = function("/home/valeriehayot/Documents/code/bigdatatools/fsl_maths.json")
 
 p = subprocess.Popen("sudo sysctl vm.drop_caches=3", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 (out, err) = p.communicate()
@@ -38,11 +56,8 @@ else:
 num_its = int(sys.argv[2])
 num_threads = int(sys.argv[3])
 block_size = sys.argv[4]
-maths = function("/home/v_hayots/bigdatatools/fsl_maths.json")
+load_env(sys.argv[5])
 
-init_splits = ['bigbrain_25G.nii', 'bigbrain_0_0_1735.nii',
-               'bigbrain_0_1005_0.nii','bigbrain_0_1005_1735.nii',
-               'bigbrain_0_2010_0.nii', 'bigbrain_0_2010_1735.nii']
 
 threads = list()
 for index in range(num_threads):
