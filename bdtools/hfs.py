@@ -24,6 +24,8 @@ from socket import gethostname
 from time import time, sleep
 from shutil import move, copy2, rmtree
 from threading import Lock, Thread
+from multiprocessing import Process
+import asyncio
 
 if not hasattr(fuse, '__version__'):
     raise RuntimeError("your fuse-py doesn't know of fuse.__version__, probably it's too old.")
@@ -194,6 +196,9 @@ class HFS(Fuse):
         if not hasattr(self, 'root'):
             self.root = os.getcwd()
 
+        # hardcoded for now
+        self.alpha = 0.1
+
         numeric_lvl = getattr(logging, self.log.upper())
 
         fmt = '%(asctime)s:%(levelname)s:%(message)s'
@@ -227,15 +232,25 @@ class HFS(Fuse):
 
         self.logger.debug("Storage hierarchy: {}".format(" -> ".join(self.hierarchy)))
 
+        self.process = Process(target=self._flush)
+        self.process.start()
+
+        self.process = Process(target=self._evict)
+        self.process.start()
+        #self.thread = Thread(target=self._flush)
+        #self.thread.setDaemon(True)
+        #self.thread.start()
+
+        #logging.debug("Starting up async thread to cleanup LRU")
+        #asyncio.run(self._evict())
+        #self.thread = Thread(target=self._cleanup_tmp)
+        #self.thread.setDaemon(True)
+        #self.thread.start()
+
         #TODO: does not currently work
         #atexit.register(self._cleanup)
-        #signal.signal(signal.SIGTERM, self._cleanup)
-        #signal.signal(signal.SIGINT, self._cleanup)
-
-        logging.debug("Starting up async thread to flush")
-        self.thread = Thread(target=self._cp2wd)
-        self.thread.setDaemon(True)
-        self.thread.start()
+        signal.signal(signal.SIGTERM, self._cleanup)
+        signal.signal(signal.SIGINT, self._cleanup)
 
 
     # modified
@@ -299,7 +314,7 @@ class HFS(Fuse):
         self.logger.error("Not enough space on any device")
 
 
-    def _cleanup(self):
+    def _cleanup(self, *args, **kwargs):
         self.logger.info('***Cleaning up FUSE fs***')
         for mount in self.hierarchy:
             if mount != self.root:
@@ -338,28 +353,12 @@ class HFS(Fuse):
         return file_access
 
 
-    def _get_outdir(self, fp):
-        filesize = os.stat(fp).st_size
-
-        secondary_storage = ['ssd', 'hdd', 'lustre']
-        for k,v in self.storage.items():
-            for mount in v:
-                if mount in fp:
-                    if k not in secondary_storage:
-                        for storage in secondary_storage:
-                            if self.root in self.storage[storage]:
-                                return self.root
-                            for st in self.storage[storage]:
-                                if disk_usage(st).free >= filesize:
-                                    return st
-                        
-                    return self.root
-
-
-    def _cp2wd(self, delay=0):
+    def _flush(self, delay=0):
         #TODO: improve policy
         # remove file with oldest last access time
+        logging.debug("Flusher process running")
         while True:
+            #while True:
             sleep(delay)
             file_access = self._get_faccess(cp=True)
 
@@ -367,8 +366,7 @@ class HFS(Fuse):
                 for fa, data in sorted(file_access.items(), key=lambda x: x[0]):
                     fp = data[0]
                     subdir = data[1]
-                    out_dir = self._get_outdir(fp)
-                    out_fp = os.path.join(out_dir, subdir.rstrip('.'),
+                    out_fp = os.path.join(self.root, subdir.rstrip('.'),
                                            os.path.basename(fp))
 
                     #try:
@@ -378,6 +376,30 @@ class HFS(Fuse):
                     #except Exception as e:
                     #    logging.debug('File {} move failed'.format(fp))
                     #    logging.debug(str(e))
+                    
+
+    # TODO: fix cleanup for when pipeline is known
+    def _evict(self, init_delay=20, percent=60, reused_files=None):
+        logging.debug("Eviction process started")
+        while True:
+            if virtual_memory().percent > percent:
+                delay = 5
+            else:
+                delay = init_delay
+
+            #sleep(delay)
+            file_access = self._get_faccess()
+
+            if len(file_access.keys()) > 0:
+                fp, subdir = file_access[sorted(file_access.keys())[0]]
+                fn = os.path.basename(fp)
+
+                out_fn = os.path.join(self.root, subdir, fn)
+                
+                if (os.path.isfile(out_fn) and
+                    (os.path.getsize(out_fn) == os.path.getsize(fp))):
+                    logging.debug("Removing file {}".format(fp))
+                    os.remove(fp)
 
     def getattr(self, path):
         full_path = self._full_path(path)
@@ -548,7 +570,7 @@ class HFS(Fuse):
         def write(self, buf, offset):
 
             if self.wlock.acquire():
-                self.logger.debug("writing file {}".format(self.fp))
+                #self.logger.debug("writing file {}".format(self.fp))
                 buff_size = sys.getsizeof(buf)
                 if self._top_fs(size=buff_size) in self.fp:
                     self.file.seek(offset)
@@ -712,8 +734,8 @@ Userspace nullfs-alike: mirror the filesystem tree from some point on.
         if server.fuse_args.mount_expected():
             server.start()
             #os.chdir(server.root)
-    except OSError:
-        print("can't enter root of underlying filesystem", file=sys.stderr)
+    except OSError as e:
+        print("can't enter root of underlying filesystem", str(e))
         sys.exit(1)
 
     server.main()
