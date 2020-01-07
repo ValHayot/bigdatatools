@@ -135,8 +135,7 @@ def avail_fs(working_dir=os.getcwd(), possible_fs=None, whitelist=None,
             else:
                 continue
 
-
-            if (d.fstype != 'tmpfs' and 'lustre' not in d.fstype
+            if (d.fstype != 'tmpfs' and 'lustre' not in d.fstype and 'nfs4' not in d.fstype
                 and os.path.basename(device) in disk_tree):
                 pd = parent_drives(disk_tree, device)
                 set_ssd_hdd(pd, storage, disk_tree, mountpoint)
@@ -152,7 +151,7 @@ def avail_fs(working_dir=os.getcwd(), possible_fs=None, whitelist=None,
             pd = parent_drives(disk_tree, wd_pd)
             fs = wd_fs
 
-            if fs != 'lustre':
+            if fs != 'lustre' and 'nfs4' not in fs:
                 set_ssd_hdd(pd, storage, disk_tree, working_dir)
             else:
                 add_el(storage, fs, working_dir)
@@ -160,7 +159,7 @@ def avail_fs(working_dir=os.getcwd(), possible_fs=None, whitelist=None,
     # some cleanup as not sure what to do with other filesystems for the moment
 
     if possible_fs is None:
-        possible_fs = ['tmpfs', 'ssd', 'hdd', 'lustre']
+        possible_fs = ['tmpfs', 'ssd', 'hdd', 'nfs4', 'lustre']
 
     orig_keys = [k for k in storage.keys()]
     for fs in orig_keys:
@@ -225,7 +224,7 @@ class HFS(Fuse):
         self.logger.info("Setting up storage")
 
         self.storage = avail_fs(working_dir=self.root, whitelist=self.whitelist)
-        self.possible_fs = self.storage.keys()
+        self.possible_fs = ['tmpfs', 'ssd', 'hdd', 'nfs4', 'lustre'] #self.storage.keys()
         self.hierarchy = self._sorted_storage()
 
         #print("\n".join("{0}: {1}".format(k, v) for k,v in self.storage.items()))
@@ -235,8 +234,8 @@ class HFS(Fuse):
         self.process = Process(target=self._flush)
         self.process.start()
 
-        self.process = Process(target=self._evict)
-        self.process.start()
+        #self.process = Process(target=self._evict)
+        #self.process.start()
         #self.thread = Thread(target=self._flush)
         #self.thread.setDaemon(True)
         #self.thread.start()
@@ -250,7 +249,7 @@ class HFS(Fuse):
         #TODO: does not currently work
         #atexit.register(self._cleanup)
         signal.signal(signal.SIGTERM, self._cleanup)
-        signal.signal(signal.SIGINT, self._cleanup)
+        #signal.signal(signal.SIGINT, self._cleanup)
 
 
     # modified
@@ -371,8 +370,8 @@ class HFS(Fuse):
 
                     #try:
                     if not os.path.isfile(out_fp) and os.path.isfile(fp):
-                        self.logger.info('Copying file {} ---> {}'.format(fp, out_fp))
-                        copy2(fp, out_fp)
+                        self.logger.debug('Copying file {} ---> {}'.format(fp, os.path.dirname(out_fp)))
+                        copy2(fp, os.path.dirname(out_fp))
                     #except Exception as e:
                     #    logging.debug('File {} move failed'.format(fp))
                     #    logging.debug(str(e))
