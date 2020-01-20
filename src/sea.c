@@ -49,6 +49,8 @@ int sea_getattr(const char *path, struct stat *statbuf)
 
     retstat = lstat(fpath, statbuf);
 
+    printf("getattr function. Path = %s. Return value = %d\n", fpath, retstat);
+
     return retstat;
 }
 
@@ -73,6 +75,7 @@ int sea_readlink(const char *path, char *link, size_t size)
         link[retstat] = '\0';
         retstat = 0;
     }
+    printf("readlink function. Path = %s. Return value = %d\n", fpath, retstat);
 
     return retstat;
 }
@@ -98,6 +101,9 @@ int sea_mknod(const char *path, mode_t mode, dev_t dev)
             retstat = mkfifo(fpath, mode);
         else
             retstat = mknod(fpath, mode, dev);
+
+    printf("mknod function. Path = %s. Return value = %d\n", fpath, retstat);
+    return retstat;
 }
 
 
@@ -109,48 +115,68 @@ int sea_mknod(const char *path, mode_t mode, dev_t dev)
  * */
 int sea_mkdir(const char *path, mode_t mode)
 {
+    int retstat = 0;
     char fpath[PATH_MAX];
 
     sea_fullpath(fpath, path);
 
-    return mkdir(fpath, mode);
+    retstat = mkdir(fpath, mode);
+
+    printf("mkdir function. Path = %s. Return value = %d\n", fpath, retstat);
+    return retstat;
 }
 
 /** Remove a file */
 int sea_unlink(const char *path)
 {
+    int retstat = 0;
     char fpath[PATH_MAX];
     sea_fullpath(fpath, path);
 
-    return unlink(fpath);
+    retstat = unlink(fpath);
+
+    printf("unlink function. Path = %s. Return value = %d\n", fpath, retstat);
+    return retstat;
 }
 
 /** Remove a directory */
 int sea_rmdir(const char *path)
 {
+    int retstat = 0;
     char fpath[PATH_MAX];
     sea_fullpath(fpath, path);
 
-    return rmdir(fpath);
+    retstat = rmdir(fpath);
+    printf("rmdir function. Path = %s. Return value = %d\n", fpath, retstat);
+
+    return retstat;
 }
 
 /** Create a symbolic link */
 int sea_symlink(const char *path, const char *link)
 {
+    int retstat = 0;
     char flink[PATH_MAX];
     sea_fullpath(flink, link);
 
-    return symlink(path, flink);
+    retstat = symlink(path, flink);
+
+    printf("symlink function. Path = %s. Return value = %d\n", flink, retstat);
+    return retstat;
 }
 
 /** Rename a file */
 int sea_rename(const char *path, const char *newpath)
 {
+    int retstat = 0;
     char fpath[PATH_MAX];
     char fnewpath[PATH_MAX];
 
     sea_fullpath(fpath, path);
     sea_fullpath(fnewpath, newpath);
+
+    retstat = rename(fpath, fnewpath);
+    printf("rename function. Path = %s. Return value = %d\n", fnewpath, retstat);
 
     return rename(fpath, fnewpath);
 }
@@ -158,38 +184,55 @@ int sea_rename(const char *path, const char *newpath)
 /** Create a hard link to a file */
 int sea_link(const char *path, const char *newpath)
 {
+    int retstat = 0;
     char fpath[PATH_MAX], fnewpath[PATH_MAX];
     sea_fullpath(fpath, path);
     sea_fullpath(fnewpath, newpath);
 
-    return link(fpath, fnewpath);
+    retstat = link(fpath, fnewpath);
+    printf("link function. Path = %s. Return value = %d\n", fnewpath, retstat);
+
+    return retstat;
 }
 
 /** Change the permission bits of a file */
 int sea_chmod(const char *path, mode_t mode)
 {
+    int retstat = 0;
     char fpath[PATH_MAX];
     sea_fullpath(fpath, path);
 
-    return chmod(fpath, mode);
+    retstat = chmod(fpath, mode);
+    printf("chmod function. Path = %s. Return value = %d\n", fpath, retstat);
+
+    return retstat;
 }
 
 /** Change the owner and group of a file */
 int sea_chown(const char *path, uid_t uid, gid_t gid)
 {
+    int retstat = 0;
     char fpath[PATH_MAX];
     sea_fullpath(fpath, path);
 
-    return chown(fpath, uid, gid);
+    retstat = chown(fpath, uid, gid);
+    printf("chown function. Path = %s. Return value = %d\n", fpath, retstat);
+
+    return retstat;
 }
 
 /** Change the size of a file */
 int sea_truncate(const char *path, off_t newsize)
 {
+    int retstat = 0;
+
     char fpath[PATH_MAX];
     sea_fullpath(fpath, path);
 
-    return truncate(fpath, newsize);
+    retstat = truncate(fpath, newsize);
+    printf("truncate function. Path = %s. Return value = %d\n", fpath, retstat);
+
+    return retstat;
 }
 
 
@@ -197,13 +240,17 @@ int sea_truncate(const char *path, off_t newsize)
  *
  * Deprecated, use utimens() instead.
  */
-// note: remove since deprecated
+// ***note: remove since deprecated***
 int sea_utime(const char *path, struct utimbuf *ubuf)
 {
+    int retstat = 0;
     char fpath[PATH_MAX];
     sea_fullpath(fpath, path);
 
-    return utime(fpath, ubuf);
+    retstat = utime(fpath, ubuf);
+    printf("utime function. Path = %s. Return value = %d\n", fpath, retstat);
+
+    return retstat;
 }
 
 
@@ -234,6 +281,7 @@ int sea_open(const char *path, struct fuse_file_info *fi)
     fd = open(fpath, fi->flags);
 
     fi->fh = fd;
+    printf("open function. Path = %s. Return value = %d\n", fpath, retstat);
     return retstat;
 }
 
@@ -254,6 +302,9 @@ int sea_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
     int retstat = 0;
 
     retstat = pread(fi->fh, buf, size, offset);
+    printf("file read function. Path = %s. Return value = %d\n", path, retstat);
+
+    return retstat;
 }
 
 
@@ -271,6 +322,9 @@ int sea_write(const char *path, const char *buf, size_t size, off_t offset,
     int retstat = 0;
 
     retstat = pwrite(fi->fh, buf, size, offset);
+    printf("file truncate function. Path = %s. Return value = %d\n", path, retstat);
+
+    return retstat;
 }
 
 
@@ -288,6 +342,7 @@ int sea_statfs(const char *path, struct statvfs *statv)
     sea_fullpath(fpath, path);
 
     retstat = statvfs(fpath, statv);
+    printf("file statfs function. Path = %s. Return value = %d\n", fpath, retstat);
 
     return retstat;
 }
@@ -318,7 +373,9 @@ int sea_statfs(const char *path, struct statvfs *statv)
  */
 int sea_flush(const char *path, struct fuse_file_info *fi)
 {
-    return 0;
+    int retstat = 0;
+    printf("file flush function. Path = %s. Return value = %d\n", path, retstat);
+    return retstat;
 }
 
 /** Release an open file
@@ -337,7 +394,10 @@ int sea_flush(const char *path, struct fuse_file_info *fi)
  */
 int sea_release(const char *path, struct fuse_file_info *fi)
 {
-    return close(fi->fh);
+    int retstat = 0;
+    retstat = close(fi->fh);
+    printf("release function. Path = %s. Return value = %d\n", path, retstat);
+    return retstat;
 }
 
 /** Synchronize file contents
@@ -349,12 +409,16 @@ int sea_release(const char *path, struct fuse_file_info *fi)
  */
 int sea_fsync(const char *path, int datasync, struct fuse_file_info *fi)
 {
+    int retstat = 0;
 #ifdef HAVE_FDATASYNC
     if (datasync)
-        return fdatasync(fi->fh);
+        retstat = fdatasync(fi->fh);
+        printf("fsync datasync function. Path = %s. Return value = %d\n", path, retstat);
     else
 #endif
-        return fsync(fsync(fi->fh));
+        retstat = fsync(fsync(fi->fh));
+        printf("fsync function. Path = %s. Return value = %d\n", path, retstat);
+    return retstat;
 }
 
 #ifdef HAVE_SYS_XATTR_H
@@ -368,6 +432,7 @@ int sea_setxattr(const char *path, const char *name, const char *value, size_t s
     sea_fullpath(fpath, path);
 
     retstat = lsetxattr(fpath, name, value, size, flags);
+    printf("setxattr function. Path = %s. Return value = %d\n", fpath, retstat);
 
     return retstat;
 }
@@ -381,6 +446,7 @@ int sea_getxattr(const char *path, const char *name, char *value, size_t size)
     sea_fullpath(fpath, path);
 
     retstat = lgetxattr(fpath, name, value, size);
+    printf("getxattr function. Path = %s. Return value = %d\n", fpath, retstat);
 
     return retstat;
 }
@@ -398,11 +464,12 @@ int sea_listxattr(const char *path, char *list, size_t size)
     if (retstat >= 0){
         if (list != NULL)
             for (ptr = list; ptr < list + retstat; ptr += strlen(ptr)+1)
-                fprintf("    \"%s\"\n", ptr);
+                printf("    \"%s\"\n", ptr);
         else
-            fprintf("    (null)\n");
+            printf("    (null)\n");
     }
 
+    printf("listxattr function. Path = %s. Return value = %d\n", fpath, retstat);
     return retstat;
 }
 
@@ -414,6 +481,7 @@ int sea_removexattr(const char *path, const char *name)
     sea_fullpath(fpath, path);
     
     retstat = lremovexattr(fpath, name);
+    printf("lremovexattr function. Path = %s. Return value = %d\n", fpath, retstat);
     return retstat;
 }
 #endif
@@ -442,6 +510,7 @@ int sea_opendir(const char *path, struct fuse_file_info *fi)
         retstat = -errno;
 
     fi->fh = (intptr_t) dp;
+    printf("opendir function. Path = %s. Return value = %d\n", fpath, retstat);
 
     return retstat;
 }
@@ -488,6 +557,7 @@ int sea_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
         }
     } while ((de = readdir(dp)) != NULL);
 
+    printf("readdir function. Path = %s. Return value = %d\n", path, retstat);
     return retstat;
 }
 
@@ -500,6 +570,7 @@ int sea_releasedir(const char *path, struct fuse_file_info *fi)
     int retstat = 0;
     closedir((DIR *) (uintptr_t) fi->fh);
 
+    printf("releasedir function. Path = %s. Return value = %d\n", path, retstat);
     return retstat;
 }
 
@@ -513,6 +584,7 @@ int sea_releasedir(const char *path, struct fuse_file_info *fi)
 int sea_fsyncdir(const char *path, int datasync, struct fuse_file_info *fi)
 {
     int retstat = 0;
+    printf("fsyncdir function. Path = %s. Return value = %d\n", path, retstat);
     return retstat;
 }
 
@@ -562,6 +634,7 @@ int sea_access(const char *path, int mask)
     sea_fullpath(fpath, path);
 
     retstat = access(fpath, mask);
+    printf("access function. Path = %s. Return value = %d\n", fpath, retstat);
 
     return retstat;
 }
@@ -600,6 +673,7 @@ int sea_ftruncate(const char *path, off_t offset, struct fuse_file_info *fi)
 
     retstat = ftruncate(fi->fh, offset);
 
+    printf("ftruncate function. Path = %s. Return value = %d\n", path, retstat);
     return retstat;
 }
 
@@ -625,6 +699,7 @@ int sea_fgetattr(const char *path, struct stat *statbuf, struct fuse_file_info *
 
     retstat = fstat(fi->fh, statbuf);
 
+    printf("fgetattr function. Path = %s. Return value = %d\n", path, retstat);
     return retstat;
 }
 
