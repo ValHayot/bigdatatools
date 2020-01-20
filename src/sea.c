@@ -774,10 +774,12 @@ int main(int argc, char *argv[])
     }
 
     sea_data->rootdir = realpath(argv[argc-2], NULL);
-    argv[argc-2] = argv[argc-1] = NULL;
+    argv[argc-2] = argv[argc-1];
+    argv[argc-1] = NULL;
     argc--;
 
     fprintf(stderr, "about to call fuse main\n");
+    printf("num args: %d. arguments: %s\n", argc, *argv);
     fuse_stat = fuse_main(argc, argv, &sea_oper, sea_data);
     fprintf(stderr, "fuse_main returned %d\n", fuse_stat);
 
