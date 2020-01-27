@@ -1,786 +1,736 @@
 /*
- * Sea File System
- * Adapted from Big Brother File System https://www.cs.nmsu.edu/~pfeiffer/fuse-tutorial/src/bbfs.c
- *
- */
-#include "params.h"
+  FUSE: Filesystem in Userspace
+  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+  Copyright (C) 2011       Sebastian Pipping <sebastian@pipping.org>
 
-#include <ctype.h>
-#include <dirent.h>
-#include <errno.h>
-#include <fcntl.h>
+  This program can be distributed under the terms of the GNU GPL.
+  See the file COPYING.
+*/
+
+/** @file
+ *
+ * This file system mirrors the existing file system hierarchy of the
+ * system, starting at the root file system. This is implemented by
+ * just "passing through" all requests to the corresponding user-space
+ * libc functions. This implementation is a little more sophisticated
+ * than the one in passthrough.c, so performance is not quite as bad.
+ *
+ * Compile with:
+ *
+ *     gcc -Wall passthrough_fh.c `pkg-config fuse3 --cflags --libs` -lulockmgr -o passthrough_fh
+ *
+ * ## Source code ##
+ * \include passthrough_fh.c
+ */
+
+#define FUSE_USE_VERSION 31
+
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+
+#define _GNU_SOURCE
+
 #include <fuse.h>
-#include <libgen.h>
-#include <limits.h>
-#include <stdlib.h>
+
+#ifdef HAVE_LIBULOCKMGR
+#include <ulockmgr.h>
+#endif
+
 #include <stdio.h>
+#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/types.h>
-
-#ifdef HAVE_SYS_XATTR_H
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <dirent.h>
+#include <errno.h>
+#include <sys/time.h>
+#include <assert.h>
+#ifdef HAVE_SETXATTR
 #include <sys/xattr.h>
 #endif
-
-static void sea_fullpath(char fpath[PATH_MAX], const char *path)
-{
-    strcpy(fpath, SEA_DATA->rootdir);
-    strncat(fpath, path, PATH_MAX);
-}
-
-//////////////////////////////////////////////////////////
-// FUSE filesystem functions
-// Comments obtained from /usr/include/fuse/fuse.h
-/////////////////////////////////////////////////////////
-
-
-/** Get file attributes.
- *
- * Similar to stat().  The 'st_dev' and 'st_blksize' fields are
- * ignored.	 The 'st_ino' field is ignored except if the 'use_ino'
- * mount option is given.
- */
-int sea_getattr(const char *path, struct stat *statbuf)
-{
-    int retstat;
-    char fpath[PATH_MAX];
-
-    sea_fullpath(fpath, path);
-
-    retstat = lstat(fpath, statbuf);
-
-    printf("getattr function. Path = %s. Return value = %d\n", fpath, retstat);
-
-    return retstat;
-}
-
-
-/** Read the target of a symbolic link
- *
- * The buffer should be filled with a null terminated string.  The
- * buffer size argument includes the space for the terminating
- * null character.	If the linkname is too long to fit in the
- * buffer, it should be truncated.	The return value should be 0
- * for success.
- */
-int sea_readlink(const char *path, char *link, size_t size)
-{
-    int retstat;
-    char fpath[PATH_MAX];
-
-    sea_fullpath(fpath, path);
-
-    retstat = readlink(fpath, link, size - 1);
-    if (retstat >= 0){
-        link[retstat] = '\0';
-        retstat = 0;
-    }
-    printf("readlink function. Path = %s. Return value = %d\n", fpath, retstat);
-
-    return retstat;
-}
-
-
-/** Create a file node
- *
- * This is called for creation of all non-directory, non-symlink
- * nodes.  If the filesystem defines a create() method, then for
- * regular files that will be called instead.
- */
-int sea_mknod(const char *path, mode_t mode, dev_t dev)
-{
-    int retstat = 0;
-    char fpath[PATH_MAX];
-
-    sea_fullpath(fpath, path);
-
-    if (S_ISREG(mode)){
-        retstat = open(fpath, O_CREAT | O_EXCL | O_WRONLY, mode);
-    } else
-        if (S_ISFIFO(mode))
-            retstat = mkfifo(fpath, mode);
-        else
-            retstat = mknod(fpath, mode, dev);
-
-    printf("mknod function. Path = %s. Return value = %d\n", fpath, retstat);
-    return retstat;
-}
-
-
-/** Create a directory 
- *
- * Note that the mode argument may not have the type specification
- * bits set, i.e. S_ISDIR(mode) can be false.  To obtain the
- * correct directory type bits use  mode|S_IFDIR
- * */
-int sea_mkdir(const char *path, mode_t mode)
-{
-    int retstat = 0;
-    char fpath[PATH_MAX];
-
-    sea_fullpath(fpath, path);
-
-    retstat = mkdir(fpath, mode);
-
-    printf("mkdir function. Path = %s. Return value = %d\n", fpath, retstat);
-    return retstat;
-}
-
-/** Remove a file */
-int sea_unlink(const char *path)
-{
-    int retstat = 0;
-    char fpath[PATH_MAX];
-    sea_fullpath(fpath, path);
-
-    retstat = unlink(fpath);
-
-    printf("unlink function. Path = %s. Return value = %d\n", fpath, retstat);
-    return retstat;
-}
-
-/** Remove a directory */
-int sea_rmdir(const char *path)
-{
-    int retstat = 0;
-    char fpath[PATH_MAX];
-    sea_fullpath(fpath, path);
-
-    retstat = rmdir(fpath);
-    printf("rmdir function. Path = %s. Return value = %d\n", fpath, retstat);
-
-    return retstat;
-}
-
-/** Create a symbolic link */
-int sea_symlink(const char *path, const char *link)
-{
-    int retstat = 0;
-    char flink[PATH_MAX];
-    sea_fullpath(flink, link);
-
-    retstat = symlink(path, flink);
-
-    printf("symlink function. Path = %s. Return value = %d\n", flink, retstat);
-    return retstat;
-}
-
-/** Rename a file */
-int sea_rename(const char *path, const char *newpath)
-{
-    int retstat = 0;
-    char fpath[PATH_MAX];
-    char fnewpath[PATH_MAX];
-
-    sea_fullpath(fpath, path);
-    sea_fullpath(fnewpath, newpath);
-
-    retstat = rename(fpath, fnewpath);
-    printf("rename function. Path = %s. Return value = %d\n", fnewpath, retstat);
-
-    return rename(fpath, fnewpath);
-}
-
-/** Create a hard link to a file */
-int sea_link(const char *path, const char *newpath)
-{
-    int retstat = 0;
-    char fpath[PATH_MAX], fnewpath[PATH_MAX];
-    sea_fullpath(fpath, path);
-    sea_fullpath(fnewpath, newpath);
-
-    retstat = link(fpath, fnewpath);
-    printf("link function. Path = %s. Return value = %d\n", fnewpath, retstat);
-
-    return retstat;
-}
-
-/** Change the permission bits of a file */
-int sea_chmod(const char *path, mode_t mode)
-{
-    int retstat = 0;
-    char fpath[PATH_MAX];
-    sea_fullpath(fpath, path);
-
-    retstat = chmod(fpath, mode);
-    printf("chmod function. Path = %s. Return value = %d\n", fpath, retstat);
-
-    return retstat;
-}
-
-/** Change the owner and group of a file */
-int sea_chown(const char *path, uid_t uid, gid_t gid)
-{
-    int retstat = 0;
-    char fpath[PATH_MAX];
-    sea_fullpath(fpath, path);
-
-    retstat = chown(fpath, uid, gid);
-    printf("chown function. Path = %s. Return value = %d\n", fpath, retstat);
-
-    return retstat;
-}
-
-/** Change the size of a file */
-int sea_truncate(const char *path, off_t newsize)
-{
-    int retstat = 0;
-
-    char fpath[PATH_MAX];
-    sea_fullpath(fpath, path);
-
-    retstat = truncate(fpath, newsize);
-    printf("truncate function. Path = %s. Return value = %d\n", fpath, retstat);
-
-    return retstat;
-}
-
-
-/** Change the access and/or modification times of a file
- *
- * Deprecated, use utimens() instead.
- */
-// ***note: remove since deprecated***
-int sea_utime(const char *path, struct utimbuf *ubuf)
-{
-    int retstat = 0;
-    char fpath[PATH_MAX];
-    sea_fullpath(fpath, path);
-
-    retstat = utime(fpath, ubuf);
-    printf("utime function. Path = %s. Return value = %d\n", fpath, retstat);
-
-    return retstat;
-}
-
-
-/** File open operation
- *
- * No creation (O_CREAT, O_EXCL) and by default also no
- * truncation (O_TRUNC) flags will be passed to open(). If an
- * application specifies O_TRUNC, fuse first calls truncate()
- * and then open(). Only if 'atomic_o_trunc' has been
- * specified and kernel version is 2.6.24 or later, O_TRUNC is
- * passed on to open.
- *
- * Unless the 'default_permissions' mount option is given,
- * open should check if the operation is permitted for the
- * given flags. Optionally open may also return an arbitrary
- * filehandle in the fuse_file_info structure, which will be
- * passed to all file operations.
- *
- * Changed in version 2.2
- */
-int sea_open(const char *path, struct fuse_file_info *fi)
-{
-    int retstat = 0;
-    int fd;
-    char fpath[PATH_MAX];
-
-    sea_fullpath(fpath, path);
-    fd = open(fpath, fi->flags);
-
-    fi->fh = fd;
-    printf("open function. Path = %s. Return value = %d\n", fpath, retstat);
-    return retstat;
-}
-
-
-/** Read data from an open file
- *
- * Read should return exactly the number of bytes requested except
- * on EOF or error, otherwise the rest of the data will be
- * substituted with zeroes.	 An exception to this is when the
- * 'direct_io' mount option is specified, in which case the return
- * value of the read system call will reflect the return value of
- * this operation.
- *
- * Changed in version 2.2
- */
-int sea_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
-{
-    int retstat = 0;
-
-    retstat = pread(fi->fh, buf, size, offset);
-    printf("file read function. Path = %s. Return value = %d\n", path, retstat);
-
-    return retstat;
-}
-
-
-/** Write data to an open file
- *
- * Write should return exactly the number of bytes requested
- * except on error.	 An exception to this is when the 'direct_io'
- * mount option is specified (see read operation).
- *
- * Changed in version 2.2
- */
-int sea_write(const char *path, const char *buf, size_t size, off_t offset,
-              struct fuse_file_info *fi)
-{
-    int retstat = 0;
-
-    retstat = pwrite(fi->fh, buf, size, offset);
-    printf("file truncate function. Path = %s. Return value = %d\n", path, retstat);
-
-    return retstat;
-}
-
-
-/** Get file system statistics
- *
- * The 'f_frsize', 'f_favail', 'f_fsid' and 'f_flag' fields are ignored
- *
- * Replaced 'struct statfs' parameter with 'struct statvfs' in
- * version 2.5
- */
-int sea_statfs(const char *path, struct statvfs *statv)
-{
-    int retstat = 0;
-    char fpath[PATH_MAX];
-    sea_fullpath(fpath, path);
-
-    retstat = statvfs(fpath, statv);
-    printf("file statfs function. Path = %s. Return value = %d\n", fpath, retstat);
-
-    return retstat;
-}
-
-
-/** Possibly flush cached data
- *
- * BIG NOTE: This is not equivalent to fsync().  It's not a
- * request to sync dirty data.
- *
- * Flush is called on each close() of a file descriptor.  So if a
- * filesystem wants to return write errors in close() and the file
- * has cached dirty data, this is a good place to write back data
- * and return any errors.  Since many applications ignore close()
- * errors this is not always useful.
- *
- * NOTE: The flush() method may be called more than once for each
- * open().	This happens if more than one file descriptor refers
- * to an opened file due to dup(), dup2() or fork() calls.	It is
- * not possible to determine if a flush is final, so each flush
- * should be treated equally.  Multiple write-flush sequences are
- * relatively rare, so this shouldn't be a problem.
- *
- * Filesystems shouldn't assume that flush will always be called
- * after some writes, or that if will be called at all.
- *
- * Changed in version 2.2
- */
-int sea_flush(const char *path, struct fuse_file_info *fi)
-{
-    int retstat = 0;
-    printf("file flush function. Path = %s. Return value = %d\n", path, retstat);
-    return retstat;
-}
-
-/** Release an open file
- *
- * Release is called when there are no more references to an open
- * file: all file descriptors are closed and all memory mappings
- * are unmapped.
- *
- * For every open() call there will be exactly one release() call
- * with the same flags and file descriptor.	 It is possible to
- * have a file opened more than once, in which case only the last
- * release will mean, that no more reads/writes will happen on the
- * file.  The return value of release is ignored.
- *
- * Changed in version 2.2
- */
-int sea_release(const char *path, struct fuse_file_info *fi)
-{
-    int retstat = 0;
-    retstat = close(fi->fh);
-    printf("release function. Path = %s. Return value = %d\n", path, retstat);
-    return retstat;
-}
-
-/** Synchronize file contents
- *
- * If the datasync parameter is non-zero, then only the user data
- * should be flushed, not the meta data.
- *
- * Changed in version 2.2
- */
-int sea_fsync(const char *path, int datasync, struct fuse_file_info *fi)
-{
-    int retstat = 0;
-#ifdef HAVE_FDATASYNC
-    if (datasync)
-        retstat = fdatasync(fi->fh);
-        printf("fsync datasync function. Path = %s. Return value = %d\n", path, retstat);
-    else
-#endif
-        retstat = fsync(fsync(fi->fh));
-        printf("fsync function. Path = %s. Return value = %d\n", path, retstat);
-    return retstat;
-}
-
-#ifdef HAVE_SYS_XATTR_H
-
-
-/** Set extended attributes */
-int sea_setxattr(const char *path, const char *name, const char *value, size_t size, int flags)
-{
-    int retstat = 0;
-    char fpath[PATH_MAX];
-    sea_fullpath(fpath, path);
-
-    retstat = lsetxattr(fpath, name, value, size, flags);
-    printf("setxattr function. Path = %s. Return value = %d\n", fpath, retstat);
-
-    return retstat;
-}
-
-/** Get extended attributes */
-int sea_getxattr(const char *path, const char *name, char *value, size_t size)
-{
-    int retstat = 0;
-    char fpath[PATH_MAX];
-
-    sea_fullpath(fpath, path);
-
-    retstat = lgetxattr(fpath, name, value, size);
-    printf("getxattr function. Path = %s. Return value = %d\n", fpath, retstat);
-
-    return retstat;
-}
-
-/** List extended attributes */
-int sea_listxattr(const char *path, char *list, size_t size)
-{
-    int retstat = 0;
-    char fpath[PATH_MAX];
-    char *ptr;
-
-    sea_fullpath(fpath, path);
-    
-    retstart = llistxattr(fpath, list, size);
-    if (retstat >= 0){
-        if (list != NULL)
-            for (ptr = list; ptr < list + retstat; ptr += strlen(ptr)+1)
-                printf("    \"%s\"\n", ptr);
-        else
-            printf("    (null)\n");
-    }
-
-    printf("listxattr function. Path = %s. Return value = %d\n", fpath, retstat);
-    return retstat;
-}
-
-/** Remove extended attributes */
-int sea_removexattr(const char *path, const char *name)
-{
-    int retstat = 0;
-    char fpath[PATH_MAX];
-    sea_fullpath(fpath, path);
-    
-    retstat = lremovexattr(fpath, name);
-    printf("lremovexattr function. Path = %s. Return value = %d\n", fpath, retstat);
-    return retstat;
-}
-#endif
-
-/** Open directory
- *
- * Unless the 'default_permissions' mount option is given,
- * this method should check if opendir is permitted for this
- * directory. Optionally opendir may also return an arbitrary
- * filehandle in the fuse_file_info structure, which will be
- * passed to readdir, releasedir and fsyncdir.
- *
- * Introduced in version 2.3
- */
-int sea_opendir(const char *path, struct fuse_file_info *fi)
-{
-    DIR *dp;
-    int retstat = 0;
-    char fpath[PATH_MAX];
-
-    sea_fullpath(fpath, path);
-
-    dp = opendir(fpath);
-
-    if (dp == NULL)
-        retstat = -errno;
-
-    fi->fh = (intptr_t) dp;
-    printf("opendir function. Path = %s. Return value = %d\n", fpath, retstat);
-
-    return retstat;
-}
-
-/** Read directory
- *
- * This supersedes the old getdir() interface.  New applications
- * should use this.
- *
- * The filesystem may choose between two modes of operation:
- *
- * 1) The readdir implementation ignores the offset parameter, and
- * passes zero to the filler function's offset.  The filler
- * function will not return '1' (unless an error happens), so the
- * whole directory is read in a single readdir operation.  This
- * works just like the old getdir() method.
- *
- * 2) The readdir implementation keeps track of the offsets of the
- * directory entries.  It uses the offset parameter and always
- * passes non-zero offset to the filler function.  When the buffer
- * is full (or an error happens) the filler function will return
- * '1'.
- *
- * Introduced in version 2.3
- */
-int sea_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
-                struct fuse_file_info *fi){
-    int retstat = 0;
-    DIR *dp;
-    struct dirent *de;
-
-    dp = (DIR *) (uintptr_t) fi->fh;
-
-    de = readdir(dp);
-
-    if (de == 0) {
-        retstat = -errno;
-        return retstat;
-    }
-
-    do {
-        if (filler(buf, de->d_name, NULL, 0) != 0) {
-            return -ENOMEM;
-        }
-    } while ((de = readdir(dp)) != NULL);
-
-    printf("readdir function. Path = %s. Return value = %d\n", path, retstat);
-    return retstat;
-}
-
-/** Release directory
- *
- * Introduced in version 2.3
- */
-int sea_releasedir(const char *path, struct fuse_file_info *fi)
-{
-    int retstat = 0;
-    closedir((DIR *) (uintptr_t) fi->fh);
-
-    printf("releasedir function. Path = %s. Return value = %d\n", path, retstat);
-    return retstat;
-}
-
-/** Synchronize directory contents
- *
- * If the datasync parameter is non-zero, then only the user data
- * should be flushed, not the meta data
- *
- * Introduced in version 2.3
- */
-int sea_fsyncdir(const char *path, int datasync, struct fuse_file_info *fi)
-{
-    int retstat = 0;
-    printf("fsyncdir function. Path = %s. Return value = %d\n", path, retstat);
-    return retstat;
-}
-
-/**
- * Initialize filesystem
- *
- * The return value will passed in the private_data field of
- * fuse_context to all file operations and as a parameter to the
- * destroy() method.
- *
- * Introduced in version 2.3
- * Changed in version 2.6
- */
-void *sea_init(struct fuse_conn_info *conn)
-{
-    return SEA_DATA;
-}
-
-
-/**
- * Clean up filesystem
- *
- * Called on filesystem exit.
- *
- * Introduced in version 2.3
- */
-void sea_destroy(void *userdata){
-    printf("Cleanup called\n");
-}
-
-/**
- * Check file access permissions
- *
- * This will be called for the access() system call.  If the
- * 'default_permissions' mount option is given, this method is not
- * called.
- *
- * This method is not called under Linux kernel versions 2.4.x
- *
- * Introduced in version 2.5
- */
-int sea_access(const char *path, int mask)
-{
-    int retstat = 0;
-    char fpath[PATH_MAX];
-
-    sea_fullpath(fpath, path);
-
-    retstat = access(fpath, mask);
-    printf("access function. Path = %s. Return value = %d\n", fpath, retstat);
-
-    return retstat;
-}
-
-/**
- * Create and open a file
- *
- * If the file does not exist, first create it with the specified
- * mode, and then open it.
- *
- * If this method is not implemented or under Linux kernel
- * versions earlier than 2.6.15, the mknod() and open() methods
- * will be called instead.
- *
- * Introduced in version 2.5
- */
-// Not implemented.  I had a version that used creat() to create and
-// open the file, which it turned out opened the file write-only.
-
-
-/**
- * Change the size of an open file
- *
- * This method is called instead of the truncate() method if the
- * truncation was invoked from an ftruncate() system call.
- *
- * If this method is not implemented or under Linux kernel
- * versions earlier than 2.6.15, the truncate() method will be
- * called instead.
- *
- * Introduced in version 2.5
- */
-int sea_ftruncate(const char *path, off_t offset, struct fuse_file_info *fi)
-{
-    int retstat = 0;
-
-    retstat = ftruncate(fi->fh, offset);
-
-    printf("ftruncate function. Path = %s. Return value = %d\n", path, retstat);
-    return retstat;
-}
-
-
-/**
- * Get attributes from an open file
- *
- * This method is called instead of the getattr() method if the
- * file information is available.
- *
- * Currently this is only called after the create() method if that
- * is implemented (see above).  Later it may be called for
- * invocations of fstat() too.
- *
- * Introduced in version 2.5
- */
-int sea_fgetattr(const char *path, struct stat *statbuf, struct fuse_file_info *fi)
-{
-    int retstat = 0;
-
-    if (!strcmp(path, "/"))
-        return sea_getattr(path, statbuf);
-
-    retstat = fstat(fi->fh, statbuf);
-
-    printf("fgetattr function. Path = %s. Return value = %d\n", path, retstat);
-    return retstat;
-}
-
-
-struct fuse_operations sea_oper = {
-    .getattr = sea_getattr,
-    .readlink = sea_readlink,
-    .getdir = NULL, // deprecated
-    .mknod = sea_mknod,
-    .mkdir = sea_mkdir,
-    .unlink = sea_unlink,
-    .rmdir = sea_rmdir,
-    .symlink = sea_symlink,
-    .rename = sea_rename,
-    .link = sea_link,
-    .chmod = sea_chmod,
-    .chown = sea_chown,
-    .truncate = sea_truncate,
-    .utime = sea_utime,
-    .open = sea_open,
-    .read = sea_read,
-    .write = sea_write,
-    .statfs = sea_statfs,
-    .flush = sea_flush,
-    .release = sea_release,
-    .fsync = sea_fsync,
-
-#ifdef HAVE_SYS_XATTR_H
-    .setxattr = sea_setxattr,
-    .getxattr = sea_getxattr,
-    .listxattr = sea_listxattr,
-    .removexattr = sea_removexattr,
-#endif
-
-    .opendir = sea_opendir,
-    .readdir = sea_readdir,
-    .releasedir = sea_releasedir,
-    .fsyncdir = sea_fsyncdir,
-    .init = sea_init,
-    .destroy = sea_destroy,
-    .access = sea_access,
-    .ftruncate = sea_ftruncate,
-    .fgetattr = sea_fgetattr
+#include <sys/file.h> /* flock(2) */
+
+#define FP_LENGTH 128
+#define NUM_MOUNTS 10
+
+
+static struct options {
+    const char *rootdir;
+    const char *hierarchy_file;
+    char hierarchy [NUM_MOUNTS][FP_LENGTH];
+    int show_help;
+} options;
+
+#define OPTION(t, p)                 \
+    {t, offsetof(struct options, p), 1 }
+static const struct fuse_opt option_spec[] = {
+    OPTION("--hierarchy_file=%s", hierarchy_file),
+    OPTION("-h", show_help),
+    OPTION("--help", show_help),
+    FUSE_OPT_END
 };
 
-void sea_usage(){
-    fprintf(stderr, "usage: sea [FUSE and mount options] rootDir mountPoint \n");
-    abort();
+static void *sea_init(struct fuse_conn_info *conn,
+		      struct fuse_config *cfg)
+{
+	(void) conn;
+	cfg->use_ino = 1;
+	cfg->nullpath_ok = 1;
+
+	/* Pick up changes from lower filesystem right away. This is
+	   also necessary for better hardlink support. When the kernel
+	   calls the unlink() handler, it does not know the inode of
+	   the to-be-removed entry and can therefore not invalidate
+	   the cache of the associated inode - resulting in an
+	   incorrect st_nlink value being reported for any remaining
+	   hardlinks to this inode. */
+	cfg->entry_timeout = 0;
+	cfg->attr_timeout = 0;
+	cfg->negative_timeout = 0;
+
+    FILE* fhierarchy = fopen(options.hierarchy_file, "r");
+    if (fhierarchy == NULL){
+        perror("Error opening hierarchy file");
+        abort();
+    }
+
+    int i = 0;
+
+    char line[400];
+    while (fgets(line, sizeof(line), fhierarchy))
+        i++;
+    /*
+    for (int i = 0; i < NUM_MOUNTS; i++){
+        printf("%s", options.hierarchy[i]);
+    }*/
+
+	return NULL;
+}
+
+static int sea_getattr(const char *path, struct stat *stbuf,
+			struct fuse_file_info *fi)
+{
+	int res;
+
+	(void) path;
+
+	if(fi)
+		res = fstat(fi->fh, stbuf);
+	else
+		res = lstat(path, stbuf);
+	if (res == -1)
+		return -errno;
+
+	return 0;
+}
+
+static int sea_access(const char *path, int mask)
+{
+	int res;
+
+	res = access(path, mask);
+	if (res == -1)
+		return -errno;
+
+	return 0;
+}
+
+static int sea_readlink(const char *path, char *buf, size_t size)
+{
+	int res;
+
+	res = readlink(path, buf, size - 1);
+	if (res == -1)
+		return -errno;
+
+	buf[res] = '\0';
+	return 0;
+}
+
+struct sea_dirp {
+	DIR *dp;
+	struct dirent *entry;
+	off_t offset;
+};
+
+static int sea_opendir(const char *path, struct fuse_file_info *fi)
+{
+	int res;
+	struct sea_dirp *d = malloc(sizeof(struct sea_dirp));
+	if (d == NULL)
+		return -ENOMEM;
+
+	d->dp = opendir(path);
+	if (d->dp == NULL) {
+		res = -errno;
+		free(d);
+		return res;
+	}
+	d->offset = 0;
+	d->entry = NULL;
+
+	fi->fh = (unsigned long) d;
+	return 0;
+}
+
+static inline struct sea_dirp *get_dirp(struct fuse_file_info *fi)
+{
+	return (struct sea_dirp *) (uintptr_t) fi->fh;
+}
+
+static int sea_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
+		       off_t offset, struct fuse_file_info *fi,
+		       enum fuse_readdir_flags flags)
+{
+	struct sea_dirp *d = get_dirp(fi);
+
+	(void) path;
+	if (offset != d->offset) {
+#ifndef __FreeBSD__
+		seekdir(d->dp, offset);
+#else
+		/* Subtract the one that we add when calling
+		   telldir() below */
+		seekdir(d->dp, offset-1);
+#endif
+		d->entry = NULL;
+		d->offset = offset;
+	}
+	while (1) {
+		struct stat st;
+		off_t nextoff;
+		enum fuse_fill_dir_flags fill_flags = 0;
+
+		if (!d->entry) {
+			d->entry = readdir(d->dp);
+			if (!d->entry)
+				break;
+		}
+#ifdef HAVE_FSTATAT
+		if (flags & FUSE_READDIR_PLUS) {
+			int res;
+
+			res = fstatat(dirfd(d->dp), d->entry->d_name, &st,
+				      AT_SYMLINK_NOFOLLOW);
+			if (res != -1)
+				fill_flags |= FUSE_FILL_DIR_PLUS;
+		}
+#endif
+		if (!(fill_flags & FUSE_FILL_DIR_PLUS)) {
+			memset(&st, 0, sizeof(st));
+			st.st_ino = d->entry->d_ino;
+			st.st_mode = d->entry->d_type << 12;
+		}
+		nextoff = telldir(d->dp);
+#ifdef __FreeBSD__		
+		/* Under FreeBSD, telldir() may return 0 the first time
+		   it is called. But for libfuse, an offset of zero
+		   means that offsets are not supported, so we shift
+		   everything by one. */
+		nextoff++;
+#endif
+		if (filler(buf, d->entry->d_name, &st, nextoff, fill_flags))
+			break;
+
+		d->entry = NULL;
+		d->offset = nextoff;
+	}
+
+	return 0;
+}
+
+static int sea_releasedir(const char *path, struct fuse_file_info *fi)
+{
+	struct sea_dirp *d = get_dirp(fi);
+	(void) path;
+	closedir(d->dp);
+	free(d);
+	return 0;
+}
+
+static int sea_mknod(const char *path, mode_t mode, dev_t rdev)
+{
+	int res;
+
+	if (S_ISFIFO(mode))
+		res = mkfifo(path, mode);
+	else
+		res = mknod(path, mode, rdev);
+	if (res == -1)
+		return -errno;
+
+	return 0;
+}
+
+static int sea_mkdir(const char *path, mode_t mode)
+{
+	int res;
+
+	res = mkdir(path, mode);
+	if (res == -1)
+		return -errno;
+
+	return 0;
+}
+
+static int sea_unlink(const char *path)
+{
+	int res;
+
+	res = unlink(path);
+	if (res == -1)
+		return -errno;
+
+	return 0;
+}
+
+static int sea_rmdir(const char *path)
+{
+	int res;
+
+	res = rmdir(path);
+	if (res == -1)
+		return -errno;
+
+	return 0;
+}
+
+static int sea_symlink(const char *from, const char *to)
+{
+	int res;
+
+	res = symlink(from, to);
+	if (res == -1)
+		return -errno;
+
+	return 0;
+}
+
+static int sea_rename(const char *from, const char *to, unsigned int flags)
+{
+	int res;
+
+	/* When we have renameat2() in libc, then we can implement flags */
+	if (flags)
+		return -EINVAL;
+
+	res = rename(from, to);
+	if (res == -1)
+		return -errno;
+
+	return 0;
+}
+
+static int sea_link(const char *from, const char *to)
+{
+	int res;
+
+	res = link(from, to);
+	if (res == -1)
+		return -errno;
+
+	return 0;
+}
+
+static int sea_chmod(const char *path, mode_t mode,
+		     struct fuse_file_info *fi)
+{
+	int res;
+
+	if(fi)
+		res = fchmod(fi->fh, mode);
+	else
+		res = chmod(path, mode);
+	if (res == -1)
+		return -errno;
+
+	return 0;
+}
+
+static int sea_chown(const char *path, uid_t uid, gid_t gid,
+		     struct fuse_file_info *fi)
+{
+	int res;
+
+	if (fi)
+		res = fchown(fi->fh, uid, gid);
+	else
+		res = lchown(path, uid, gid);
+	if (res == -1)
+		return -errno;
+
+	return 0;
+}
+
+static int sea_truncate(const char *path, off_t size,
+			 struct fuse_file_info *fi)
+{
+	int res;
+
+	if(fi)
+		res = ftruncate(fi->fh, size);
+	else
+		res = truncate(path, size);
+
+	if (res == -1)
+		return -errno;
+
+	return 0;
+}
+
+#ifdef HAVE_UTIMENSAT
+static int sea_utimens(const char *path, const struct timespec ts[2],
+		       struct fuse_file_info *fi)
+{
+	int res;
+
+	/* don't use utime/utimes since they follow symlinks */
+	if (fi)
+		res = futimens(fi->fh, ts);
+	else
+		res = utimensat(0, path, ts, AT_SYMLINK_NOFOLLOW);
+	if (res == -1)
+		return -errno;
+
+	return 0;
+}
+#endif
+
+static int sea_create(const char *path, mode_t mode, struct fuse_file_info *fi)
+{
+	int fd;
+
+	fd = open(path, fi->flags, mode);
+	if (fd == -1)
+		return -errno;
+
+	fi->fh = fd;
+	return 0;
+}
+
+static int sea_open(const char *path, struct fuse_file_info *fi)
+{
+	int fd;
+
+	fd = open(path, fi->flags);
+	if (fd == -1)
+		return -errno;
+
+	fi->fh = fd;
+	return 0;
+}
+
+static int sea_read(const char *path, char *buf, size_t size, off_t offset,
+		    struct fuse_file_info *fi)
+{
+	int res;
+
+	(void) path;
+	res = pread(fi->fh, buf, size, offset);
+	if (res == -1)
+		res = -errno;
+
+	return res;
+}
+
+static int sea_read_buf(const char *path, struct fuse_bufvec **bufp,
+			size_t size, off_t offset, struct fuse_file_info *fi)
+{
+	struct fuse_bufvec *src;
+
+	(void) path;
+
+	src = malloc(sizeof(struct fuse_bufvec));
+	if (src == NULL)
+		return -ENOMEM;
+
+	*src = FUSE_BUFVEC_INIT(size);
+
+	src->buf[0].flags = FUSE_BUF_IS_FD | FUSE_BUF_FD_SEEK;
+	src->buf[0].fd = fi->fh;
+	src->buf[0].pos = offset;
+
+	*bufp = src;
+
+	return 0;
+}
+
+static int sea_write(const char *path, const char *buf, size_t size,
+		     off_t offset, struct fuse_file_info *fi)
+{
+	int res;
+
+	(void) path;
+	res = pwrite(fi->fh, buf, size, offset);
+	if (res == -1)
+		res = -errno;
+
+	return res;
+}
+
+static int sea_write_buf(const char *path, struct fuse_bufvec *buf,
+		     off_t offset, struct fuse_file_info *fi)
+{
+	struct fuse_bufvec dst = FUSE_BUFVEC_INIT(fuse_buf_size(buf));
+
+	(void) path;
+
+	dst.buf[0].flags = FUSE_BUF_IS_FD | FUSE_BUF_FD_SEEK;
+	dst.buf[0].fd = fi->fh;
+	dst.buf[0].pos = offset;
+
+	return fuse_buf_copy(&dst, buf, FUSE_BUF_SPLICE_NONBLOCK);
+}
+
+static int sea_statfs(const char *path, struct statvfs *stbuf)
+{
+	int res;
+
+	res = statvfs(path, stbuf);
+	if (res == -1)
+		return -errno;
+
+	return 0;
+}
+
+static int sea_flush(const char *path, struct fuse_file_info *fi)
+{
+	int res;
+
+	(void) path;
+	/* This is called from every close on an open file, so call the
+	   close on the underlying filesystem.	But since flush may be
+	   called multiple times for an open file, this must not really
+	   close the file.  This is important if used on a network
+	   filesystem like NFS which flush the data/metadata on close() */
+	res = close(dup(fi->fh));
+	if (res == -1)
+		return -errno;
+
+	return 0;
+}
+
+static int sea_release(const char *path, struct fuse_file_info *fi)
+{
+	(void) path;
+	close(fi->fh);
+
+	return 0;
+}
+
+static int sea_fsync(const char *path, int isdatasync,
+		     struct fuse_file_info *fi)
+{
+	int res;
+	(void) path;
+
+#ifndef HAVE_FDATASYNC
+	(void) isdatasync;
+#else
+	if (isdatasync)
+		res = fdatasync(fi->fh);
+	else
+#endif
+		res = fsync(fi->fh);
+	if (res == -1)
+		return -errno;
+
+	return 0;
+}
+
+#ifdef HAVE_POSIX_FALLOCATE
+static int sea_fallocate(const char *path, int mode,
+			off_t offset, off_t length, struct fuse_file_info *fi)
+{
+	(void) path;
+
+	if (mode)
+		return -EOPNOTSUPP;
+
+	return -posix_fallocate(fi->fh, offset, length);
+}
+#endif
+
+#ifdef HAVE_SETXATTR
+/* xattr operations are optional and can safely be left unimplemented */
+static int sea_setxattr(const char *path, const char *name, const char *value,
+			size_t size, int flags)
+{
+	int res = lsetxattr(path, name, value, size, flags);
+	if (res == -1)
+		return -errno;
+	return 0;
+}
+
+static int sea_getxattr(const char *path, const char *name, char *value,
+			size_t size)
+{
+	int res = lgetxattr(path, name, value, size);
+	if (res == -1)
+		return -errno;
+	return res;
+}
+
+static int sea_listxattr(const char *path, char *list, size_t size)
+{
+	int res = llistxattr(path, list, size);
+	if (res == -1)
+		return -errno;
+	return res;
+}
+
+static int sea_removexattr(const char *path, const char *name)
+{
+	int res = lremovexattr(path, name);
+	if (res == -1)
+		return -errno;
+	return 0;
+}
+#endif /* HAVE_SETXATTR */
+
+#ifdef HAVE_LIBULOCKMGR
+static int sea_lock(const char *path, struct fuse_file_info *fi, int cmd,
+		    struct flock *lock)
+{
+	(void) path;
+
+	return ulockmgr_op(fi->fh, cmd, lock, &fi->lock_owner,
+			   sizeof(fi->lock_owner));
+}
+#endif
+
+static int sea_flock(const char *path, struct fuse_file_info *fi, int op)
+{
+	int res;
+	(void) path;
+
+	res = flock(fi->fh, op);
+	if (res == -1)
+		return -errno;
+
+	return 0;
+}
+
+#ifdef HAVE_COPY_FILE_RANGE
+static ssize_t sea_copy_file_range(const char *path_in,
+				   struct fuse_file_info *fi_in,
+				   off_t off_in, const char *path_out,
+				   struct fuse_file_info *fi_out,
+				   off_t off_out, size_t len, int flags)
+{
+	ssize_t res;
+	(void) path_in;
+	(void) path_out;
+
+	res = copy_file_range(fi_in->fh, &off_in, fi_out->fh, &off_out, len,
+			      flags);
+	if (res == -1)
+		return -errno;
+
+	return res;
+}
+#endif
+
+static struct fuse_operations sea_oper = {
+	.init           = sea_init,
+	.getattr	= sea_getattr,
+	.access		= sea_access,
+	.readlink	= sea_readlink,
+	.opendir	= sea_opendir,
+	.readdir	= sea_readdir,
+	.releasedir	= sea_releasedir,
+	.mknod		= sea_mknod,
+	.mkdir		= sea_mkdir,
+	.symlink	= sea_symlink,
+	.unlink		= sea_unlink,
+	.rmdir		= sea_rmdir,
+	.rename		= sea_rename,
+	.link		= sea_link,
+	.chmod		= sea_chmod,
+	.chown		= sea_chown,
+	.truncate	= sea_truncate,
+#ifdef HAVE_UTIMENSAT
+	.utimens	= sea_utimens,
+#endif
+	.create		= sea_create,
+	.open		= sea_open,
+	.read		= sea_read,
+	.read_buf	= sea_read_buf,
+	.write		= sea_write,
+	.write_buf	= sea_write_buf,
+	.statfs		= sea_statfs,
+	.flush		= sea_flush,
+	.release	= sea_release,
+	.fsync		= sea_fsync,
+#ifdef HAVE_POSIX_FALLOCATE
+	.fallocate	= sea_fallocate,
+#endif
+#ifdef HAVE_SETXATTR
+	.setxattr	= sea_setxattr,
+	.getxattr	= sea_getxattr,
+	.listxattr	= sea_listxattr,
+	.removexattr	= sea_removexattr,
+#endif
+#ifdef HAVE_LIBULOCKMGR
+	.lock		= sea_lock,
+#endif
+	.flock		= sea_flock,
+#ifdef HAVE_COPY_FILE_RANGE
+	.copy_file_range = sea_copy_file_range,
+#endif
+};
+
+
+static void show_help(const char *progname)
+{
+    printf("usage: %s [options] <shareddir> <mountpoint>\n\n", progname);
+    printf("File-system specific options:\n"
+           "   --hierarchy_file=<s>   Filesystem hierarchy file\n\n");
 }
 
 int main(int argc, char *argv[])
 {
-    int fuse_stat;
-    struct sea_state *sea_data;
-
-    // check if root. if yes, abort ? TBD
-    if ((getuid() == 0) || (geteuid() == 0)) {
-            fprintf(stderr, "Sea cannot be executed as root. Terminating program\n");
-            return 1;
-    }
-    
-    fprintf(stderr, "FUSE library version %d.%d\n", FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION);
+    int ret;
 
     if ((argc < 3) || (argv[argc-2][0] == '-') || (argv[argc-1][0] == '-'))
-        sea_usage();
-
-    sea_data = malloc(sizeof(struct sea_state));
-
-    if (sea_data == NULL) {
-        perror("main calloc");
-        abort();
+    {
+        show_help(argv[0]);
+        //return 1;
     }
 
-    sea_data->rootdir = realpath(argv[argc-2], NULL);
+    options.rootdir = realpath(argv[argc-2], NULL);
+    options.hierarchy_file = strdup("");
     argv[argc-2] = argv[argc-1];
     argv[argc-1] = NULL;
     argc--;
 
-    fprintf(stderr, "about to call fuse main\n");
-    printf("num args: %d. arguments: %s\n", argc, *argv);
-    fuse_stat = fuse_main(argc, argv, &sea_oper, sea_data);
-    fprintf(stderr, "fuse_main returned %d\n", fuse_stat);
+    struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
 
+    options.hierarchy_file = NULL;
+
+    if (fuse_opt_parse(&args, &options, option_spec, NULL) == -1)
+        return 1;
+
+    /* When --help is specified, first print our own file-system
+	   specific help text, then signal fuse_main to show
+	   additional help (by adding `--help` to the options again)
+	   without usage: line (by setting argv[0] to the empty
+	   string) */
+	if (options.show_help) {
+		show_help(argv[0]);
+		assert(fuse_opt_add_arg(&args, "--help") == 0);
+		args.argv[0][0] = '\0';
+	}
+    char full_path [PATH_MAX+1];
+    options.hierarchy_file = realpath(options.hierarchy_file, full_path);
+
+    printf("%s\n", options.hierarchy_file);
+
+	umask(0);
+	ret = fuse_main(args.argc, args.argv, &sea_oper, NULL);
+    fuse_opt_free_args(&args);
+    return ret;
 }
