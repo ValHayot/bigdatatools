@@ -44,6 +44,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <dirent.h>
 #include <errno.h>
 #include <sys/time.h>
@@ -53,15 +54,15 @@
 #endif
 #include <sys/file.h> /* flock(2) */
 
-#define FP_LENGTH 128
 #define NUM_MOUNTS 10
 
 
 static struct options {
     const char *rootdir;
     const char *hierarchy_file;
-    char hierarchy [NUM_MOUNTS][FP_LENGTH];
+    char hierarchy [NUM_MOUNTS][PATH_MAX+1];
     int show_help;
+    int total_mounts;
 } options;
 
 #define OPTION(t, p)                 \
@@ -72,6 +73,55 @@ static const struct fuse_opt option_spec[] = {
     OPTION("--help", show_help),
     FUSE_OPT_END
 };
+
+
+static void sea_fullpath(char fpath[PATH_MAX], const char *path)
+{
+    fprintf(stdout, "sea path: %s\n", path);
+    int exists = 0;
+
+    // get max inodes in directory
+    //struct statvfs st;
+    //if (statvfs(options.rootdir, &st) != 0) {
+    //    fprintf(stderr, "Error getting mounts\n");
+    //    abort();
+    //}
+
+    //if (st.f_favail == 0){
+    //    fprintf(stderr, "insufficient inodes");
+    //}
+
+    fprintf(stdout, "all paths\n");
+    // all possible locations for a given file/directory will be stored here
+    //char ** all_paths = ( char ** ) malloc ( sizeof ( char * ) * options.total_mounts );
+    
+    int j = 0;
+    for (int i = 0; i < options.total_mounts; i++){
+        strcpy(fpath, options.hierarchy[i]);
+        strncat(fpath, path, PATH_MAX);
+
+        fprintf(stdout, "sea hierarchy %s\n", fpath);
+        // check if file or directory exists
+        struct stat sb;
+        /*if (stat(fpath, &sb) == 0){
+            fprintf(stdout, "sea hierarchy %s\n", fpath);
+            exists = 1;
+            //all_paths[j] = ( char * ) malloc ( sizeof ( char ) * ( PATH_MAX + 1 ) );
+            //strcpy(all_paths[j], fpath);
+            j++;
+        }*/
+    }
+    exists = 1;
+
+    if (exists == 0){
+        strcpy(fpath, options.hierarchy[0]);
+        strncat(fpath, path, PATH_MAX);
+    }
+    fprintf(stdout, "sea fullpath: %s\n", fpath);
+
+    //return all_paths;
+
+}
 
 static void *sea_init(struct fuse_conn_info *conn,
 		      struct fuse_config *cfg)
@@ -92,20 +142,46 @@ static void *sea_init(struct fuse_conn_info *conn,
 	cfg->negative_timeout = 0;
 
     FILE* fhierarchy = fopen(options.hierarchy_file, "r");
+    fhierarchy = fopen(options.hierarchy_file, "r");
     if (fhierarchy == NULL){
-        perror("Error opening hierarchy file");
-        abort();
+        fprintf(stderr, "fuse: error opening hierarchy file: %s\n", options.hierarchy_file);
+        exit(1);
     }
 
     int i = 0;
+    while (fgets(options.hierarchy[i], sizeof(options.hierarchy[i]), fhierarchy) != NULL){
+        fprintf(stderr,  "in while\n");
+    }
+    fprintf(stderr, "outwhile\n");
+    fhierarchy = fopen(options.hierarchy_file, "r");
+    while (fgets(options.hierarchy[i], sizeof(options.hierarchy[i]), fhierarchy) != NULL){
 
-    char line[400];
-    while (fgets(line, sizeof(line), fhierarchy))
+        fprintf(stderr, "%d\n", i);
+        // Strip newline character from filename string if present
+        int len = strlen(options.hierarchy[i]);
+        if (len > 0 && options.hierarchy[i][len-1] == '\n')
+            options.hierarchy[i][len - 1] = 0;
+
+        struct stat sb;
+
+        /*if (stat(options.hierarchy[i], &sb) != 0 || !(sb.st_mode & S_IFDIR)){
+            fprintf(stderr, "Invalid mountpoint: %s\n", options.hierarchy[i]);
+            // Need to figure out how to safely exit with error
+            fclose(fhierarchy);
+            exit(1);
+        }*/
         i++;
-    /*
-    for (int i = 0; i < NUM_MOUNTS; i++){
-        printf("%s", options.hierarchy[i]);
-    }*/
+    }
+    fclose(fhierarchy);
+    fprintf(stderr, "ERROR");
+
+    options.total_mounts = i;
+    
+    fprintf(stdout, "===Sea mount hierarchy===\n\n");
+    for (int i = 0; i < options.total_mounts ; i++){
+        fprintf(stdout, "Level %d: %s\n", i, options.hierarchy[i]);
+    }
+    fprintf(stdout, "\n=========================\n");
 
 	return NULL;
 }
@@ -113,14 +189,18 @@ static void *sea_init(struct fuse_conn_info *conn,
 static int sea_getattr(const char *path, struct stat *stbuf,
 			struct fuse_file_info *fi)
 {
-	int res;
+	int res = 0;
 
 	(void) path;
 
 	if(fi)
 		res = fstat(fi->fh, stbuf);
 	else
-		res = lstat(path, stbuf);
+    {
+        char fpath[PATH_MAX];
+        sea_fullpath(fpath, path);
+		res = lstat(fpath, stbuf);
+    }
 	if (res == -1)
 		return -errno;
 
@@ -129,9 +209,11 @@ static int sea_getattr(const char *path, struct stat *stbuf,
 
 static int sea_access(const char *path, int mask)
 {
-	int res;
+	int res = 0;
 
-	res = access(path, mask);
+    char fpath[PATH_MAX];
+    sea_fullpath(fpath, path);
+	res = access(fpath, mask);
 	if (res == -1)
 		return -errno;
 
@@ -140,9 +222,12 @@ static int sea_access(const char *path, int mask)
 
 static int sea_readlink(const char *path, char *buf, size_t size)
 {
-	int res;
+	int res = 0;
 
-	res = readlink(path, buf, size - 1);
+    char fpath[PATH_MAX];
+    sea_fullpath(fpath, path);
+
+	res = readlink(fpath, buf, size - 1);
 	if (res == -1)
 		return -errno;
 
@@ -158,21 +243,32 @@ struct sea_dirp {
 
 static int sea_opendir(const char *path, struct fuse_file_info *fi)
 {
-	int res;
+    fprintf(stdout, "sea: opening directory at path: %s\n", path);
+	int res = 0;
 	struct sea_dirp *d = malloc(sizeof(struct sea_dirp));
 	if (d == NULL)
 		return -ENOMEM;
 
-	d->dp = opendir(path);
-	if (d->dp == NULL) {
-		res = -errno;
-		free(d);
-		return res;
-	}
-	d->offset = 0;
-	d->entry = NULL;
+    char fpath[PATH_MAX];
+    //char ** all_paths;
+    sea_fullpath(fpath, path);
 
-	fi->fh = (unsigned long) d;
+    //for (int i = 0; i < options.total_mounts; i++){
+        fprintf(stdout, "sea: opening directory %s\n", fpath);
+
+        d->dp = opendir(fpath);//all_paths[0]);
+        if (d->dp == NULL) {
+            res = -errno;
+            free(d);
+            return res;
+        }
+        d->offset = 0;
+        d->entry = NULL;
+
+        fi->fh = (unsigned long) d;
+        fprintf(stdout, "sea: directory %s opened\n", fpath);
+
+    //}
 	return 0;
 }
 
@@ -185,9 +281,11 @@ static int sea_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 		       off_t offset, struct fuse_file_info *fi,
 		       enum fuse_readdir_flags flags)
 {
+    fprintf(stdout, "sea: reading directory\n");
 	struct sea_dirp *d = get_dirp(fi);
 
 	(void) path;
+
 	if (offset != d->offset) {
 #ifndef __FreeBSD__
 		seekdir(d->dp, offset);
@@ -235,30 +333,37 @@ static int sea_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 		if (filler(buf, d->entry->d_name, &st, nextoff, fill_flags))
 			break;
 
+        fprintf(stderr, "DIRENTRY %s\n", d->entry->d_name);
 		d->entry = NULL;
 		d->offset = nextoff;
 	}
 
+    fprintf(stdout, "sea: directory %s read\n", path);
 	return 0;
 }
 
 static int sea_releasedir(const char *path, struct fuse_file_info *fi)
 {
+    fprintf(stdout, "sea: releasing directory at path: %s\n", path);
 	struct sea_dirp *d = get_dirp(fi);
 	(void) path;
 	closedir(d->dp);
 	free(d);
+    fprintf(stdout, "sea: directory %s released\n", path);
 	return 0;
 }
 
 static int sea_mknod(const char *path, mode_t mode, dev_t rdev)
 {
-	int res;
+	int res = 0;
+
+    char fpath[PATH_MAX];
+    sea_fullpath(fpath, path);
 
 	if (S_ISFIFO(mode))
-		res = mkfifo(path, mode);
+		res = mkfifo(fpath, mode);
 	else
-		res = mknod(path, mode, rdev);
+		res = mknod(fpath, mode, rdev);
 	if (res == -1)
 		return -errno;
 
@@ -267,20 +372,27 @@ static int sea_mknod(const char *path, mode_t mode, dev_t rdev)
 
 static int sea_mkdir(const char *path, mode_t mode)
 {
-	int res;
+    fprintf(stdout, "sea: creating directory at path: %s\n", path);
+	int res = 0;
+    char fpath[PATH_MAX];
+    sea_fullpath(fpath, path);
 
-	res = mkdir(path, mode);
+	res = mkdir(fpath, mode);
 	if (res == -1)
 		return -errno;
+
+    fprintf(stdout, "sea: created directory at path: %s\n", fpath);
 
 	return 0;
 }
 
 static int sea_unlink(const char *path)
 {
-	int res;
+	int res = 0;
+    char fpath[PATH_MAX];
+    sea_fullpath(fpath, path);
 
-	res = unlink(path);
+	res = unlink(fpath);
 	if (res == -1)
 		return -errno;
 
@@ -289,18 +401,23 @@ static int sea_unlink(const char *path)
 
 static int sea_rmdir(const char *path)
 {
-	int res;
+    fprintf(stdout, "sea: removing directory at path: %s\n", path);
+	int res = 0;
+    char fpath[PATH_MAX];
+    sea_fullpath(fpath, path);
 
-	res = rmdir(path);
+	res = rmdir(fpath);
 	if (res == -1)
 		return -errno;
+
+    fprintf(stdout, "sea: removed directory at path: %s\n", fpath);
 
 	return 0;
 }
 
 static int sea_symlink(const char *from, const char *to)
 {
-	int res;
+	int res = 0;
 
 	res = symlink(from, to);
 	if (res == -1)
@@ -311,7 +428,7 @@ static int sea_symlink(const char *from, const char *to)
 
 static int sea_rename(const char *from, const char *to, unsigned int flags)
 {
-	int res;
+	int res = 0;
 
 	/* When we have renameat2() in libc, then we can implement flags */
 	if (flags)
@@ -326,7 +443,7 @@ static int sea_rename(const char *from, const char *to, unsigned int flags)
 
 static int sea_link(const char *from, const char *to)
 {
-	int res;
+	int res = 0;
 
 	res = link(from, to);
 	if (res == -1)
@@ -338,12 +455,16 @@ static int sea_link(const char *from, const char *to)
 static int sea_chmod(const char *path, mode_t mode,
 		     struct fuse_file_info *fi)
 {
-	int res;
+	int res = 0;
 
 	if(fi)
 		res = fchmod(fi->fh, mode);
 	else
-		res = chmod(path, mode);
+    {
+        char fpath[PATH_MAX];
+        sea_fullpath(fpath, path);
+		res = chmod(fpath, mode);
+    }
 	if (res == -1)
 		return -errno;
 
@@ -353,12 +474,16 @@ static int sea_chmod(const char *path, mode_t mode,
 static int sea_chown(const char *path, uid_t uid, gid_t gid,
 		     struct fuse_file_info *fi)
 {
-	int res;
+	int res = 0;
 
 	if (fi)
 		res = fchown(fi->fh, uid, gid);
 	else
-		res = lchown(path, uid, gid);
+    {
+        char fpath[PATH_MAX];
+        sea_fullpath(fpath, path);
+		res = lchown(fpath, uid, gid);
+    }
 	if (res == -1)
 		return -errno;
 
@@ -368,13 +493,15 @@ static int sea_chown(const char *path, uid_t uid, gid_t gid,
 static int sea_truncate(const char *path, off_t size,
 			 struct fuse_file_info *fi)
 {
-	int res;
+	int res = 0;
 
 	if(fi)
 		res = ftruncate(fi->fh, size);
-	else
-		res = truncate(path, size);
-
+	else{
+        char fpath[PATH_MAX];
+        sea_fullpath(fpath, path);
+		res = truncate(fpath, size);
+    }
 	if (res == -1)
 		return -errno;
 
@@ -385,13 +512,18 @@ static int sea_truncate(const char *path, off_t size,
 static int sea_utimens(const char *path, const struct timespec ts[2],
 		       struct fuse_file_info *fi)
 {
-	int res;
+    fprintf(stdout, "sea: setting time\n")
+	int res = 0;
 
 	/* don't use utime/utimes since they follow symlinks */
 	if (fi)
 		res = futimens(fi->fh, ts);
 	else
-		res = utimensat(0, path, ts, AT_SYMLINK_NOFOLLOW);
+    {
+        char fpath[PATH_MAX];
+        sea_fullpath(fpath, path);
+		res = utimensat(0, fpath, ts, AT_SYMLINK_NOFOLLOW);
+    }
 	if (res == -1)
 		return -errno;
 
@@ -402,8 +534,11 @@ static int sea_utimens(const char *path, const struct timespec ts[2],
 static int sea_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
 	int fd;
+    char fpath[PATH_MAX];
+    sea_fullpath(fpath, path);
 
-	fd = open(path, fi->flags, mode);
+    fprintf(stderr, "sea create fp: %s\n", fpath);
+	fd = open(fpath, fi->flags, mode);
 	if (fd == -1)
 		return -errno;
 
@@ -414,8 +549,11 @@ static int sea_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 static int sea_open(const char *path, struct fuse_file_info *fi)
 {
 	int fd;
+    char fpath[PATH_MAX];
+    sea_fullpath(fpath, path);
 
-	fd = open(path, fi->flags);
+    fprintf(stderr, "sea open fp: %s\n", fpath);
+	fd = open(fpath, fi->flags);
 	if (fd == -1)
 		return -errno;
 
@@ -426,7 +564,7 @@ static int sea_open(const char *path, struct fuse_file_info *fi)
 static int sea_read(const char *path, char *buf, size_t size, off_t offset,
 		    struct fuse_file_info *fi)
 {
-	int res;
+	int res = 0;
 
 	(void) path;
 	res = pread(fi->fh, buf, size, offset);
@@ -461,7 +599,7 @@ static int sea_read_buf(const char *path, struct fuse_bufvec **bufp,
 static int sea_write(const char *path, const char *buf, size_t size,
 		     off_t offset, struct fuse_file_info *fi)
 {
-	int res;
+	int res = 0;
 
 	(void) path;
 	res = pwrite(fi->fh, buf, size, offset);
@@ -487,18 +625,22 @@ static int sea_write_buf(const char *path, struct fuse_bufvec *buf,
 
 static int sea_statfs(const char *path, struct statvfs *stbuf)
 {
-	int res;
+    fprintf(stdout, "sea: getting file stats: %s\n", path);
+	int res = 0;
+    char fpath[PATH_MAX];
+    sea_fullpath(fpath, path);
 
-	res = statvfs(path, stbuf);
+	res = statvfs(fpath, stbuf);
 	if (res == -1)
 		return -errno;
 
+    fprintf(stdout, "sea: obtained file stats: %s\n", fpath);
 	return 0;
 }
 
 static int sea_flush(const char *path, struct fuse_file_info *fi)
 {
-	int res;
+	int res = 0;
 
 	(void) path;
 	/* This is called from every close on an open file, so call the
@@ -524,7 +666,7 @@ static int sea_release(const char *path, struct fuse_file_info *fi)
 static int sea_fsync(const char *path, int isdatasync,
 		     struct fuse_file_info *fi)
 {
-	int res;
+	int res = 0;
 	(void) path;
 
 #ifndef HAVE_FDATASYNC
@@ -559,7 +701,9 @@ static int sea_fallocate(const char *path, int mode,
 static int sea_setxattr(const char *path, const char *name, const char *value,
 			size_t size, int flags)
 {
-	int res = lsetxattr(path, name, value, size, flags);
+    char fpath[PATH_MAX];
+    sea_fullpath(fpath, path);
+	int res = lsetxattr(fpath, name, value, size, flags);
 	if (res == -1)
 		return -errno;
 	return 0;
@@ -568,7 +712,9 @@ static int sea_setxattr(const char *path, const char *name, const char *value,
 static int sea_getxattr(const char *path, const char *name, char *value,
 			size_t size)
 {
-	int res = lgetxattr(path, name, value, size);
+    char fpath[PATH_MAX];
+    sea_fullpath(fpath, path);
+	int res = lgetxattr(fpath, name, value, size);
 	if (res == -1)
 		return -errno;
 	return res;
@@ -576,7 +722,9 @@ static int sea_getxattr(const char *path, const char *name, char *value,
 
 static int sea_listxattr(const char *path, char *list, size_t size)
 {
-	int res = llistxattr(path, list, size);
+    char fpath[PATH_MAX];
+    sea_fullpath(fpath, path);
+	int res = llistxattr(fpath, list, size);
 	if (res == -1)
 		return -errno;
 	return res;
@@ -584,7 +732,9 @@ static int sea_listxattr(const char *path, char *list, size_t size)
 
 static int sea_removexattr(const char *path, const char *name)
 {
-	int res = lremovexattr(path, name);
+    char fpath[PATH_MAX];
+    sea_fullpath(fpath, path);
+	int res = lremovexattr(fpath, name);
 	if (res == -1)
 		return -errno;
 	return 0;
@@ -727,10 +877,21 @@ int main(int argc, char *argv[])
     char full_path [PATH_MAX+1];
     options.hierarchy_file = realpath(options.hierarchy_file, full_path);
 
-    printf("%s\n", options.hierarchy_file);
+    if (options.hierarchy_file == NULL){
+        perror("Error: provided hierarchy file does not exist");
+        return -errno;
+    };
+    printf("Hierarchy file: %s\n", options.hierarchy_file);
+    FILE* fhierarchy = fopen(options.hierarchy_file, "r");
+    if (fhierarchy == NULL){
+        fprintf(stderr, "fuse: error opening hierarchy file: %s\n", options.hierarchy_file);
+        exit(1);
+    }
 
 	umask(0);
+    fprintf(stdout, "starting system\n");
 	ret = fuse_main(args.argc, args.argv, &sea_oper, NULL);
+    fprintf(stdout, "system started \n");
     fuse_opt_free_args(&args);
     return ret;
 }
