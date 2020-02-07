@@ -126,6 +126,7 @@ static void sea_fullpath(char fpath[PATH_MAX], const char *path)
 static void *sea_init(struct fuse_conn_info *conn,
 		      struct fuse_config *cfg)
 {
+    fprintf(stderr, "Initializing Sea filesystem\n");
 	(void) conn;
 	cfg->use_ino = 1;
 	cfg->nullpath_ok = 1;
@@ -183,12 +184,14 @@ static void *sea_init(struct fuse_conn_info *conn,
     }
     fprintf(stdout, "\n=========================\n");
 
+    fprintf(stderr, "Sea filesystem initialized\n");
 	return NULL;
 }
 
 static int sea_getattr(const char *path, struct stat *stbuf,
 			struct fuse_file_info *fi)
 {
+    fprintf(stderr, "Sea: getattr of path %s\n", path);
 	int res = 0;
 
 	(void) path;
@@ -204,16 +207,20 @@ static int sea_getattr(const char *path, struct stat *stbuf,
 	if (res == -1)
 		return -errno;
 
+    fprintf(stderr, "Sea: getattr of path completed %s\n", path);
 	return 0;
 }
 
 static int sea_access(const char *path, int mask)
 {
+    fprintf(stderr, "Sea: access of path %s\n", path);
 	int res = 0;
 
     char fpath[PATH_MAX];
     sea_fullpath(fpath, path);
+    fprintf(stderr, "Sea: access of full path %s\n", fpath);
 	res = access(fpath, mask);
+    fprintf(stderr, "Sea: access of path %s completed.\n", path);
 	if (res == -1)
 		return -errno;
 
@@ -222,6 +229,7 @@ static int sea_access(const char *path, int mask)
 
 static int sea_readlink(const char *path, char *buf, size_t size)
 {
+    fprintf(stderr, "Sea: readlink of path %s\n", path);
 	int res = 0;
 
     char fpath[PATH_MAX];
@@ -232,6 +240,8 @@ static int sea_readlink(const char *path, char *buf, size_t size)
 		return -errno;
 
 	buf[res] = '\0';
+
+    fprintf(stderr, "Sea: readlink of path %s completed.\n", path);
 	return 0;
 }
 
@@ -243,7 +253,7 @@ struct sea_dirp {
 
 static int sea_opendir(const char *path, struct fuse_file_info *fi)
 {
-    fprintf(stdout, "sea: opening directory at path: %s\n", path);
+    fprintf(stderr, "sea: opening directory at path: %s\n", path);
 	int res = 0;
 	struct sea_dirp *d = malloc(sizeof(struct sea_dirp));
 	if (d == NULL)
@@ -266,9 +276,9 @@ static int sea_opendir(const char *path, struct fuse_file_info *fi)
         d->entry = NULL;
 
         fi->fh = (unsigned long) d;
-        fprintf(stdout, "sea: directory %s opened\n", fpath);
 
     //}
+    fprintf(stderr, "sea: directory %s opened\n", fpath);
 	return 0;
 }
 
@@ -281,7 +291,7 @@ static int sea_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 		       off_t offset, struct fuse_file_info *fi,
 		       enum fuse_readdir_flags flags)
 {
-    fprintf(stdout, "sea: reading directory\n");
+    fprintf(stderr, "sea: reading directory\n");
 	struct sea_dirp *d = get_dirp(fi);
 
 	(void) path;
@@ -338,23 +348,24 @@ static int sea_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 		d->offset = nextoff;
 	}
 
-    fprintf(stdout, "sea: directory %s read\n", path);
+    fprintf(stderr, "sea: directory %s read\n", path);
 	return 0;
 }
 
 static int sea_releasedir(const char *path, struct fuse_file_info *fi)
 {
-    fprintf(stdout, "sea: releasing directory at path: %s\n", path);
+    fprintf(stderr, "sea: releasing directory at path: %s\n", path);
 	struct sea_dirp *d = get_dirp(fi);
 	(void) path;
 	closedir(d->dp);
 	free(d);
-    fprintf(stdout, "sea: directory %s released\n", path);
+    fprintf(stderr, "sea: directory %s released\n", path);
 	return 0;
 }
 
 static int sea_mknod(const char *path, mode_t mode, dev_t rdev)
 {
+    fprintf(stderr, "Sea: mknod of path %s\n", path);
 	int res = 0;
 
     char fpath[PATH_MAX];
@@ -367,12 +378,14 @@ static int sea_mknod(const char *path, mode_t mode, dev_t rdev)
 	if (res == -1)
 		return -errno;
 
+    fprintf(stderr, "Sea: mknod of path %s completed.\n", path);
+
 	return 0;
 }
 
 static int sea_mkdir(const char *path, mode_t mode)
 {
-    fprintf(stdout, "sea: creating directory at path: %s\n", path);
+    fprintf(stderr, "sea: creating directory at path: %s\n", path);
 	int res = 0;
     char fpath[PATH_MAX];
     sea_fullpath(fpath, path);
@@ -381,13 +394,14 @@ static int sea_mkdir(const char *path, mode_t mode)
 	if (res == -1)
 		return -errno;
 
-    fprintf(stdout, "sea: created directory at path: %s\n", fpath);
+    fprintf(stderr, "sea: created directory at path: %s\n", fpath);
 
 	return 0;
 }
 
 static int sea_unlink(const char *path)
 {
+    fprintf(stderr, "Sea: unlink of path %s\n", path);
 	int res = 0;
     char fpath[PATH_MAX];
     sea_fullpath(fpath, path);
@@ -396,12 +410,14 @@ static int sea_unlink(const char *path)
 	if (res == -1)
 		return -errno;
 
+    fprintf(stderr, "Sea: unlink of path %s completed.\n", path);
+
 	return 0;
 }
 
 static int sea_rmdir(const char *path)
 {
-    fprintf(stdout, "sea: removing directory at path: %s\n", path);
+    fprintf(stderr, "sea: removing directory at path: %s\n", path);
 	int res = 0;
     char fpath[PATH_MAX];
     sea_fullpath(fpath, path);
@@ -410,24 +426,27 @@ static int sea_rmdir(const char *path)
 	if (res == -1)
 		return -errno;
 
-    fprintf(stdout, "sea: removed directory at path: %s\n", fpath);
+    fprintf(stderr, "sea: removed directory at path: %s\n", fpath);
 
 	return 0;
 }
 
 static int sea_symlink(const char *from, const char *to)
 {
+    fprintf(stderr, "sea: symlink of path %s to %s\n", from, to);
 	int res = 0;
 
 	res = symlink(from, to);
 	if (res == -1)
 		return -errno;
 
+    fprintf(stderr, "sea: symlink of path %s to %s completed.\n", from, to);
 	return 0;
 }
 
 static int sea_rename(const char *from, const char *to, unsigned int flags)
 {
+    fprintf(stderr, "sea: renaming directory %s to %s\n", from, to);
 	int res = 0;
 
 	/* When we have renameat2() in libc, then we can implement flags */
@@ -438,16 +457,20 @@ static int sea_rename(const char *from, const char *to, unsigned int flags)
 	if (res == -1)
 		return -errno;
 
+    fprintf(stderr, "sea: renaming directory %s to %s completed.\n", from, to);
 	return 0;
 }
 
 static int sea_link(const char *from, const char *to)
 {
+    fprintf(stderr, "sea: link directory %s to %s\n", from, to);
 	int res = 0;
 
 	res = link(from, to);
 	if (res == -1)
 		return -errno;
+
+    fprintf(stderr, "sea: link directory %s to %s completed.\n", from, to);
 
 	return 0;
 }
@@ -455,6 +478,7 @@ static int sea_link(const char *from, const char *to)
 static int sea_chmod(const char *path, mode_t mode,
 		     struct fuse_file_info *fi)
 {
+    fprintf(stderr, "sea: chmod path  %s\n", path);
 	int res = 0;
 
 	if(fi)
@@ -468,12 +492,14 @@ static int sea_chmod(const char *path, mode_t mode,
 	if (res == -1)
 		return -errno;
 
+    fprintf(stderr, "sea: chmod path  %s completed.\n", path);
 	return 0;
 }
 
 static int sea_chown(const char *path, uid_t uid, gid_t gid,
 		     struct fuse_file_info *fi)
 {
+    fprintf(stderr, "sea: chown path  %s\n", path);
 	int res = 0;
 
 	if (fi)
@@ -487,12 +513,14 @@ static int sea_chown(const char *path, uid_t uid, gid_t gid,
 	if (res == -1)
 		return -errno;
 
+    fprintf(stderr, "sea: chown path %s completed.\n", path);
 	return 0;
 }
 
 static int sea_truncate(const char *path, off_t size,
 			 struct fuse_file_info *fi)
 {
+    fprintf(stderr, "sea: truncate path  %s\n", path);
 	int res = 0;
 
 	if(fi)
@@ -505,6 +533,7 @@ static int sea_truncate(const char *path, off_t size,
 	if (res == -1)
 		return -errno;
 
+    fprintf(stderr, "sea: truncate path  %s completed.\n", path);
 	return 0;
 }
 
@@ -512,7 +541,7 @@ static int sea_truncate(const char *path, off_t size,
 static int sea_utimens(const char *path, const struct timespec ts[2],
 		       struct fuse_file_info *fi)
 {
-    fprintf(stdout, "sea: setting time\n")
+    fprintf(stderr, "Sea: setting time of path %s\n", path)
 	int res = 0;
 
 	/* don't use utime/utimes since they follow symlinks */
@@ -527,6 +556,7 @@ static int sea_utimens(const char *path, const struct timespec ts[2],
 	if (res == -1)
 		return -errno;
 
+    fprintf(stderr, "Sea: setting time of path %s completed.\n", path)
 	return 0;
 }
 #endif
@@ -543,6 +573,8 @@ static int sea_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 		return -errno;
 
 	fi->fh = fd;
+
+    fprintf(stderr, "Sea: created path %s\n", fpath);
 	return 0;
 }
 
@@ -558,12 +590,14 @@ static int sea_open(const char *path, struct fuse_file_info *fi)
 		return -errno;
 
 	fi->fh = fd;
+    fprintf(stderr, "Sea: open path %s completed.\n", fpath);
 	return 0;
 }
 
 static int sea_read(const char *path, char *buf, size_t size, off_t offset,
 		    struct fuse_file_info *fi)
 {
+    fprintf(stderr, "Sea: read path %s\n", path);
 	int res = 0;
 
 	(void) path;
@@ -571,12 +605,15 @@ static int sea_read(const char *path, char *buf, size_t size, off_t offset,
 	if (res == -1)
 		res = -errno;
 
+    fprintf(stderr, "Sea: read path %s completed.\n", path);
+
 	return res;
 }
 
 static int sea_read_buf(const char *path, struct fuse_bufvec **bufp,
 			size_t size, off_t offset, struct fuse_file_info *fi)
 {
+    fprintf(stderr, "Sea: read buff of path %s\n", path);
 	struct fuse_bufvec *src;
 
 	(void) path;
@@ -593,12 +630,14 @@ static int sea_read_buf(const char *path, struct fuse_bufvec **bufp,
 
 	*bufp = src;
 
+    fprintf(stderr, "Sea: read buff of path %s completed.\n", path);
 	return 0;
 }
 
 static int sea_write(const char *path, const char *buf, size_t size,
 		     off_t offset, struct fuse_file_info *fi)
 {
+    fprintf(stderr, "Sea: write path %s\n", path);
 	int res = 0;
 
 	(void) path;
@@ -606,12 +645,14 @@ static int sea_write(const char *path, const char *buf, size_t size,
 	if (res == -1)
 		res = -errno;
 
+    fprintf(stderr, "Sea: write path %s completed\n", path);
 	return res;
 }
 
 static int sea_write_buf(const char *path, struct fuse_bufvec *buf,
 		     off_t offset, struct fuse_file_info *fi)
 {
+    fprintf(stderr, "Sea: write buff to path %s\n", path);
 	struct fuse_bufvec dst = FUSE_BUFVEC_INIT(fuse_buf_size(buf));
 
 	(void) path;
@@ -620,12 +661,13 @@ static int sea_write_buf(const char *path, struct fuse_bufvec *buf,
 	dst.buf[0].fd = fi->fh;
 	dst.buf[0].pos = offset;
 
+    fprintf(stderr, "Sea: write buf to path %s completed.\n", path);
 	return fuse_buf_copy(&dst, buf, FUSE_BUF_SPLICE_NONBLOCK);
 }
 
 static int sea_statfs(const char *path, struct statvfs *stbuf)
 {
-    fprintf(stdout, "sea: getting file stats: %s\n", path);
+    fprintf(stderr, "sea: getting file stats: %s\n", path);
 	int res = 0;
     char fpath[PATH_MAX];
     sea_fullpath(fpath, path);
@@ -634,12 +676,13 @@ static int sea_statfs(const char *path, struct statvfs *stbuf)
 	if (res == -1)
 		return -errno;
 
-    fprintf(stdout, "sea: obtained file stats: %s\n", fpath);
+    fprintf(stderr, "sea: obtained file stats: %s\n", fpath);
 	return 0;
 }
 
 static int sea_flush(const char *path, struct fuse_file_info *fi)
 {
+    fprintf(stderr, "Sea: flush path %s\n", path);
 	int res = 0;
 
 	(void) path;
@@ -652,13 +695,16 @@ static int sea_flush(const char *path, struct fuse_file_info *fi)
 	if (res == -1)
 		return -errno;
 
+    fprintf(stderr, "Sea: flush path %s completed.\n", path);
 	return 0;
 }
 
 static int sea_release(const char *path, struct fuse_file_info *fi)
 {
+    fprintf(stderr, "Sea: release path %s\n", path);
 	(void) path;
 	close(fi->fh);
+    fprintf(stderr, "Sea: release path %s completed.\n", path);
 
 	return 0;
 }
@@ -666,6 +712,7 @@ static int sea_release(const char *path, struct fuse_file_info *fi)
 static int sea_fsync(const char *path, int isdatasync,
 		     struct fuse_file_info *fi)
 {
+    fprintf(stderr, "Sea: fsync path %s\n", path);
 	int res = 0;
 	(void) path;
 
@@ -680,6 +727,7 @@ static int sea_fsync(const char *path, int isdatasync,
 	if (res == -1)
 		return -errno;
 
+    fprintf(stderr, "Sea: fsync path %s completed\n", path);
 	return 0;
 }
 
@@ -687,6 +735,7 @@ static int sea_fsync(const char *path, int isdatasync,
 static int sea_fallocate(const char *path, int mode,
 			off_t offset, off_t length, struct fuse_file_info *fi)
 {
+    fprintf(stderr, "Sea: fallocate path %s\n", path);
 	(void) path;
 
 	if (mode)
@@ -701,20 +750,24 @@ static int sea_fallocate(const char *path, int mode,
 static int sea_setxattr(const char *path, const char *name, const char *value,
 			size_t size, int flags)
 {
+    fprintf(stderr, "Sea: setxattr path %s\n", path);
     char fpath[PATH_MAX];
     sea_fullpath(fpath, path);
 	int res = lsetxattr(fpath, name, value, size, flags);
 	if (res == -1)
 		return -errno;
+    fprintf(stderr, "Sea: setxattr path %s completed.\n", path);
 	return 0;
 }
 
 static int sea_getxattr(const char *path, const char *name, char *value,
 			size_t size)
 {
+    fprintf(stderr, "Sea: getxattr path %s\n", path);
     char fpath[PATH_MAX];
     sea_fullpath(fpath, path);
 	int res = lgetxattr(fpath, name, value, size);
+    fprintf(stderr, "Sea: getxattr path %s completed\n", path);
 	if (res == -1)
 		return -errno;
 	return res;
@@ -722,9 +775,11 @@ static int sea_getxattr(const char *path, const char *name, char *value,
 
 static int sea_listxattr(const char *path, char *list, size_t size)
 {
+    fprintf(stderr, "Sea: listxattr path %s\n", path);
     char fpath[PATH_MAX];
     sea_fullpath(fpath, path);
 	int res = llistxattr(fpath, list, size);
+    fprintf(stderr, "Sea: listxattr path %s completed\n", path);
 	if (res == -1)
 		return -errno;
 	return res;
@@ -732,9 +787,11 @@ static int sea_listxattr(const char *path, char *list, size_t size)
 
 static int sea_removexattr(const char *path, const char *name)
 {
+    fprintf(stderr, "Sea: removexattr path %s\n", path);
     char fpath[PATH_MAX];
     sea_fullpath(fpath, path);
 	int res = lremovexattr(fpath, name);
+    fprintf(stderr, "Sea: removexattr path %s completed.\n", path);
 	if (res == -1)
 		return -errno;
 	return 0;
@@ -745,6 +802,7 @@ static int sea_removexattr(const char *path, const char *name)
 static int sea_lock(const char *path, struct fuse_file_info *fi, int cmd,
 		    struct flock *lock)
 {
+    fprintf(stderr, "Sea: lock path %s\n", path);
 	(void) path;
 
 	return ulockmgr_op(fi->fh, cmd, lock, &fi->lock_owner,
@@ -754,10 +812,12 @@ static int sea_lock(const char *path, struct fuse_file_info *fi, int cmd,
 
 static int sea_flock(const char *path, struct fuse_file_info *fi, int op)
 {
+    fprintf(stderr, "Sea: flock path %s\n", path);
 	int res;
 	(void) path;
 
 	res = flock(fi->fh, op);
+    fprintf(stderr, "Sea: flock path %s completed.\n", path);
 	if (res == -1)
 		return -errno;
 
@@ -771,12 +831,14 @@ static ssize_t sea_copy_file_range(const char *path_in,
 				   struct fuse_file_info *fi_out,
 				   off_t off_out, size_t len, int flags)
 {
+    fprintf(stderr, "Sea: copy file range from %s to %s\n", path_in, path_out);
 	ssize_t res;
 	(void) path_in;
 	(void) path_out;
 
 	res = copy_file_range(fi_in->fh, &off_in, fi_out->fh, &off_out, len,
 			      flags);
+    fprintf(stderr, "Sea: copy file range from %s to %s completed.\n", path_in, path_out);
 	if (res == -1)
 		return -errno;
 
@@ -855,6 +917,7 @@ int main(int argc, char *argv[])
     options.hierarchy_file = strdup("");
     argv[argc-2] = argv[argc-1];
     argv[argc-1] = NULL;
+    fprintf(stderr, "argv args%s \n", argv[argc-2], argv[ argc -1]);
     argc--;
 
     struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
