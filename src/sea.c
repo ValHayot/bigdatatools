@@ -23,6 +23,10 @@
  * \include passthrough_fh.c
  */
 
+
+// remove this in the future
+#define HAVE_UTIMENSAT 1
+
 #define FUSE_USE_VERSION 31
 
 #ifdef HAVE_CONFIG_H
@@ -43,6 +47,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <utime.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <dirent.h>
@@ -91,18 +96,19 @@ static void sea_fullpath(char fpath[PATH_MAX], const char *path)
     //    fprintf(stderr, "insufficient inodes");
     //}
 
-    fprintf(stdout, "all paths\n");
+    fprintf(stderr, "all paths\n");
     // all possible locations for a given file/directory will be stored here
     //char ** all_paths = ( char ** ) malloc ( sizeof ( char * ) * options.total_mounts );
     
-    int j = 0;
+    //int j = 0;
     for (int i = 0; i < options.total_mounts; i++){
         strcpy(fpath, options.hierarchy[i]);
         strncat(fpath, path, PATH_MAX);
+        break;
 
-        fprintf(stdout, "sea hierarchy %s\n", fpath);
+        //fprintf(stderr, "sea hierarchy %s\n", fpath);
         // check if file or directory exists
-        struct stat sb;
+        //struct stat sb;
         /*if (stat(fpath, &sb) == 0){
             fprintf(stdout, "sea hierarchy %s\n", fpath);
             exists = 1;
@@ -117,7 +123,7 @@ static void sea_fullpath(char fpath[PATH_MAX], const char *path)
         strcpy(fpath, options.hierarchy[0]);
         strncat(fpath, path, PATH_MAX);
     }
-    fprintf(stdout, "sea fullpath: %s\n", fpath);
+    fprintf(stderr, "sea fullpath: %s\n", fpath);
 
     //return all_paths;
 
@@ -150,10 +156,6 @@ static void *sea_init(struct fuse_conn_info *conn,
     }
 
     int i = 0;
-    while (fgets(options.hierarchy[i], sizeof(options.hierarchy[i]), fhierarchy) != NULL){
-        fprintf(stderr,  "in while\n");
-    }
-    fprintf(stderr, "outwhile\n");
     fhierarchy = fopen(options.hierarchy_file, "r");
     while (fgets(options.hierarchy[i], sizeof(options.hierarchy[i]), fhierarchy) != NULL){
 
@@ -165,12 +167,12 @@ static void *sea_init(struct fuse_conn_info *conn,
 
         struct stat sb;
 
-        /*if (stat(options.hierarchy[i], &sb) != 0 || !(sb.st_mode & S_IFDIR)){
+        if (stat(options.hierarchy[i], &sb) != 0 || !(sb.st_mode & S_IFDIR)){
             fprintf(stderr, "Invalid mountpoint: %s\n", options.hierarchy[i]);
             // Need to figure out how to safely exit with error
             fclose(fhierarchy);
             exit(1);
-        }*/
+        }
         i++;
     }
     fclose(fhierarchy);
@@ -204,11 +206,11 @@ static int sea_getattr(const char *path, struct stat *stbuf,
         sea_fullpath(fpath, path);
 		res = lstat(fpath, stbuf);
     }
-	if (res == -1)
+	if (res < 0)
 		return -errno;
 
-    fprintf(stderr, "Sea: getattr of path completed %s\n", path);
-	return 0;
+    fprintf(stderr, "Sea: getattr of path completed %s %d\n", path, res);
+	return res;
 }
 
 static int sea_access(const char *path, int mask)
@@ -221,10 +223,10 @@ static int sea_access(const char *path, int mask)
     fprintf(stderr, "Sea: access of full path %s\n", fpath);
 	res = access(fpath, mask);
     fprintf(stderr, "Sea: access of path %s completed.\n", path);
-	if (res == -1)
+	if (res < -1)
 		return -errno;
 
-	return 0;
+	return res;
 }
 
 static int sea_readlink(const char *path, char *buf, size_t size)
@@ -236,13 +238,13 @@ static int sea_readlink(const char *path, char *buf, size_t size)
     sea_fullpath(fpath, path);
 
 	res = readlink(fpath, buf, size - 1);
-	if (res == -1)
+	if (res < 0)
 		return -errno;
 
 	buf[res] = '\0';
 
     fprintf(stderr, "Sea: readlink of path %s completed.\n", path);
-	return 0;
+	return res;
 }
 
 struct sea_dirp {
@@ -279,7 +281,7 @@ static int sea_opendir(const char *path, struct fuse_file_info *fi)
 
     //}
     fprintf(stderr, "sea: directory %s opened\n", fpath);
-	return 0;
+	return res;
 }
 
 static inline struct sea_dirp *get_dirp(struct fuse_file_info *fi)
@@ -375,12 +377,12 @@ static int sea_mknod(const char *path, mode_t mode, dev_t rdev)
 		res = mkfifo(fpath, mode);
 	else
 		res = mknod(fpath, mode, rdev);
-	if (res == -1)
+	if (res < 0)
 		return -errno;
 
     fprintf(stderr, "Sea: mknod of path %s completed.\n", path);
 
-	return 0;
+	return res;
 }
 
 static int sea_mkdir(const char *path, mode_t mode)
@@ -391,12 +393,12 @@ static int sea_mkdir(const char *path, mode_t mode)
     sea_fullpath(fpath, path);
 
 	res = mkdir(fpath, mode);
-	if (res == -1)
+	if (res < 0)
 		return -errno;
 
     fprintf(stderr, "sea: created directory at path: %s\n", fpath);
 
-	return 0;
+	return res;
 }
 
 static int sea_unlink(const char *path)
@@ -407,12 +409,12 @@ static int sea_unlink(const char *path)
     sea_fullpath(fpath, path);
 
 	res = unlink(fpath);
-	if (res == -1)
+	if (res < 0)
 		return -errno;
 
     fprintf(stderr, "Sea: unlink of path %s completed.\n", path);
 
-	return 0;
+	return res;
 }
 
 static int sea_rmdir(const char *path)
@@ -423,12 +425,12 @@ static int sea_rmdir(const char *path)
     sea_fullpath(fpath, path);
 
 	res = rmdir(fpath);
-	if (res == -1)
+	if (res < 0)
 		return -errno;
 
     fprintf(stderr, "sea: removed directory at path: %s\n", fpath);
 
-	return 0;
+	return res;
 }
 
 static int sea_symlink(const char *from, const char *to)
@@ -437,11 +439,11 @@ static int sea_symlink(const char *from, const char *to)
 	int res = 0;
 
 	res = symlink(from, to);
-	if (res == -1)
+	if (res < 0)
 		return -errno;
 
     fprintf(stderr, "sea: symlink of path %s to %s completed.\n", from, to);
-	return 0;
+	return res;
 }
 
 static int sea_rename(const char *from, const char *to, unsigned int flags)
@@ -454,11 +456,11 @@ static int sea_rename(const char *from, const char *to, unsigned int flags)
 		return -EINVAL;
 
 	res = rename(from, to);
-	if (res == -1)
+	if (res < 0)
 		return -errno;
 
     fprintf(stderr, "sea: renaming directory %s to %s completed.\n", from, to);
-	return 0;
+	return res;
 }
 
 static int sea_link(const char *from, const char *to)
@@ -467,12 +469,12 @@ static int sea_link(const char *from, const char *to)
 	int res = 0;
 
 	res = link(from, to);
-	if (res == -1)
+	if (res < 0)
 		return -errno;
 
     fprintf(stderr, "sea: link directory %s to %s completed.\n", from, to);
 
-	return 0;
+	return res;
 }
 
 static int sea_chmod(const char *path, mode_t mode,
@@ -489,11 +491,11 @@ static int sea_chmod(const char *path, mode_t mode,
         sea_fullpath(fpath, path);
 		res = chmod(fpath, mode);
     }
-	if (res == -1)
+	if (res < 0)
 		return -errno;
 
     fprintf(stderr, "sea: chmod path  %s completed.\n", path);
-	return 0;
+	return res;
 }
 
 static int sea_chown(const char *path, uid_t uid, gid_t gid,
@@ -510,11 +512,11 @@ static int sea_chown(const char *path, uid_t uid, gid_t gid,
         sea_fullpath(fpath, path);
 		res = lchown(fpath, uid, gid);
     }
-	if (res == -1)
+	if (res < 0)
 		return -errno;
 
     fprintf(stderr, "sea: chown path %s completed.\n", path);
-	return 0;
+	return res;
 }
 
 static int sea_truncate(const char *path, off_t size,
@@ -530,34 +532,35 @@ static int sea_truncate(const char *path, off_t size,
         sea_fullpath(fpath, path);
 		res = truncate(fpath, size);
     }
-	if (res == -1)
+	if (res < 0)
 		return -errno;
 
     fprintf(stderr, "sea: truncate path  %s completed.\n", path);
-	return 0;
+	return res;
 }
 
 #ifdef HAVE_UTIMENSAT
 static int sea_utimens(const char *path, const struct timespec ts[2],
 		       struct fuse_file_info *fi)
 {
-    fprintf(stderr, "Sea: setting time of path %s\n", path)
+    fprintf(stderr, "Sea: setting time of path %s\n", path);
 	int res = 0;
 
 	/* don't use utime/utimes since they follow symlinks */
 	if (fi)
 		res = futimens(fi->fh, ts);
 	else
-    {
-        char fpath[PATH_MAX];
-        sea_fullpath(fpath, path);
+    	{
+       	    char fpath[PATH_MAX];
+        	sea_fullpath(fpath, path);
+		
 		res = utimensat(0, fpath, ts, AT_SYMLINK_NOFOLLOW);
-    }
-	if (res == -1)
+    	}
+	if (res < 0)
 		return -errno;
 
-    fprintf(stderr, "Sea: setting time of path %s completed.\n", path)
-	return 0;
+    fprintf(stderr, "Sea: setting time of path %s completed.\n", path);
+	return res;
 }
 #endif
 
@@ -602,7 +605,7 @@ static int sea_read(const char *path, char *buf, size_t size, off_t offset,
 
 	(void) path;
 	res = pread(fi->fh, buf, size, offset);
-	if (res == -1)
+	if (res < 0)
 		res = -errno;
 
     fprintf(stderr, "Sea: read path %s completed.\n", path);
@@ -642,7 +645,7 @@ static int sea_write(const char *path, const char *buf, size_t size,
 
 	(void) path;
 	res = pwrite(fi->fh, buf, size, offset);
-	if (res == -1)
+	if (res < 0)
 		res = -errno;
 
     fprintf(stderr, "Sea: write path %s completed\n", path);
@@ -673,11 +676,11 @@ static int sea_statfs(const char *path, struct statvfs *stbuf)
     sea_fullpath(fpath, path);
 
 	res = statvfs(fpath, stbuf);
-	if (res == -1)
+	if (res < 0)
 		return -errno;
 
     fprintf(stderr, "sea: obtained file stats: %s\n", fpath);
-	return 0;
+	return res;
 }
 
 static int sea_flush(const char *path, struct fuse_file_info *fi)
@@ -692,11 +695,11 @@ static int sea_flush(const char *path, struct fuse_file_info *fi)
 	   close the file.  This is important if used on a network
 	   filesystem like NFS which flush the data/metadata on close() */
 	res = close(dup(fi->fh));
-	if (res == -1)
+	if (res < 0)
 		return -errno;
 
     fprintf(stderr, "Sea: flush path %s completed.\n", path);
-	return 0;
+	return res;
 }
 
 static int sea_release(const char *path, struct fuse_file_info *fi)
@@ -724,11 +727,11 @@ static int sea_fsync(const char *path, int isdatasync,
 	else
 #endif
 		res = fsync(fi->fh);
-	if (res == -1)
+	if (res < 0)
 		return -errno;
 
     fprintf(stderr, "Sea: fsync path %s completed\n", path);
-	return 0;
+	return res;
 }
 
 #ifdef HAVE_POSIX_FALLOCATE
@@ -754,10 +757,10 @@ static int sea_setxattr(const char *path, const char *name, const char *value,
     char fpath[PATH_MAX];
     sea_fullpath(fpath, path);
 	int res = lsetxattr(fpath, name, value, size, flags);
-	if (res == -1)
+	if (res < 0)
 		return -errno;
     fprintf(stderr, "Sea: setxattr path %s completed.\n", path);
-	return 0;
+	return res;
 }
 
 static int sea_getxattr(const char *path, const char *name, char *value,
@@ -768,7 +771,7 @@ static int sea_getxattr(const char *path, const char *name, char *value,
     sea_fullpath(fpath, path);
 	int res = lgetxattr(fpath, name, value, size);
     fprintf(stderr, "Sea: getxattr path %s completed\n", path);
-	if (res == -1)
+	if (res < 0)
 		return -errno;
 	return res;
 }
@@ -780,7 +783,7 @@ static int sea_listxattr(const char *path, char *list, size_t size)
     sea_fullpath(fpath, path);
 	int res = llistxattr(fpath, list, size);
     fprintf(stderr, "Sea: listxattr path %s completed\n", path);
-	if (res == -1)
+	if (res < 0)
 		return -errno;
 	return res;
 }
@@ -792,9 +795,9 @@ static int sea_removexattr(const char *path, const char *name)
     sea_fullpath(fpath, path);
 	int res = lremovexattr(fpath, name);
     fprintf(stderr, "Sea: removexattr path %s completed.\n", path);
-	if (res == -1)
+	if (res < 0)
 		return -errno;
-	return 0;
+	return res;
 }
 #endif /* HAVE_SETXATTR */
 
@@ -818,10 +821,10 @@ static int sea_flock(const char *path, struct fuse_file_info *fi, int op)
 
 	res = flock(fi->fh, op);
     fprintf(stderr, "Sea: flock path %s completed.\n", path);
-	if (res == -1)
+	if (res < 0)
 		return -errno;
 
-	return 0;
+	return res;
 }
 
 #ifdef HAVE_COPY_FILE_RANGE
@@ -839,7 +842,7 @@ static ssize_t sea_copy_file_range(const char *path_in,
 	res = copy_file_range(fi_in->fh, &off_in, fi_out->fh, &off_out, len,
 			      flags);
     fprintf(stderr, "Sea: copy file range from %s to %s completed.\n", path_in, path_out);
-	if (res == -1)
+	if (res < 0)
 		return -errno;
 
 	return res;
@@ -917,8 +920,8 @@ int main(int argc, char *argv[])
     options.hierarchy_file = strdup("");
     argv[argc-2] = argv[argc-1];
     argv[argc-1] = NULL;
-    fprintf(stderr, "argv args%s \n", argv[argc-2], argv[ argc -1]);
     argc--;
+    fprintf(stderr, "argv args %s %s\n", argv[argc-2], argv[ argc -1]);
 
     struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
 
