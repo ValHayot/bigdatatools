@@ -50,7 +50,7 @@ block_size_benchmarks() {
     # Fuse passthrough
 
     /home/centos/sea/src/passthrough_fh $fuse_mount
-    vary_block_size "${fuse_mount}/mnt/valfiles" bs_ssd_mem_bench.csv
+    vary_block_size "${fuse_mount}/mnt/valfiles" bs_fuse_ssd_bench.csv
     fusermount -u ${fuse_mount}
 
 }
