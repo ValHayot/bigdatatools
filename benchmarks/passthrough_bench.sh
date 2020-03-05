@@ -15,7 +15,6 @@ vary_size() {
             count=64
         fi
 
-        echo "bs,count,bw,rate" > $log_file
 
         for i in {1..10}
         do
@@ -43,7 +42,7 @@ vary_size() {
                 bs=$((2 * bs))
                 count=$((count / 2))
             else
-                count=$((count * 2))
+                count=$((count + 1024))
             fi
         done
 
@@ -53,6 +52,8 @@ vary_size() {
 size_benchmarks() {
     in_f=$1
     b_type=$2
+    increase=$3
+    reps=$4
 
     if [ ${in_f} == 'bench_in.nii' ]
     then
@@ -61,31 +62,43 @@ size_benchmarks() {
         prefix="urandom"
     fi
 
-    # benchmark to determine how different block sizes affect bandwidth
-    # Memory
-    # Native FS
+    log_native_mem=$increase/${prefix}_${b_type:0:1}s_native_mem_bench.csv
+    log_fuse_mem=${increase}/${prefix}_${b_type:0:1}s_fuse_mem_bench.csv
+    log_native_ssd=${increase}/${prefix}_${b_type:0:1}s_native_ssd_bench.csv
+    log_fuse_ssd=${increase}/${prefix}_${b_type:0:1}s_fuse_ssd_bench.csv
 
-    vary_size ${in_f} "/dev/shm" ${b_type} ${prefix}_${b_type:0:1}s_native_mem_bench.csv
+    #echo "bs,count,bw,rate" > ${log_native_mem}
+    #echo "bs,count,bw,rate" > ${log_fuse_mem}
+    #echo "bs,count,bw,rate" > ${log_native_ssd}
+    #echo "bs,count,bw,rate" > ${log_fuse_ssd}
 
-    # Fuse passthrough
-    # load fs
-    fuse_mount="/home/centos/sea/src/mount"
-    /home/centos/sea/src/passthrough_fh $fuse_mount
-    vary_size ${in_f} "${fuse_mount}/dev/shm" ${b_type} ${prefix}_${b_type:0:1}s_fuse_mem_bench.csv
-    fusermount -u ${fuse_mount}
+    for i in $(seq 1 ${reps}) 
+    do
+        echo $i ${reps}
+        # benchmark to determine how different block sizes affect bandwidth
+        # Memory
+        # Native FS
 
-    # SSD
-    # Native FS
+        vary_size ${in_f} "/dev/shm" ${b_type} ${log_native_mem}
+        # Fuse passthrough
+        # load fs
+        fuse_mount="/home/centos/sea/src/mount"
+        /home/centos/sea/src/passthrough_fh $fuse_mount
+        vary_size ${in_f} "${fuse_mount}/dev/shm" ${b_type} ${log_fuse_mem} 
+        fusermount -u ${fuse_mount}
 
-    vary_size ${in_f} "/mnt/valfiles" ${b_type} ${prefix}_${b_type:0:1}s_native_ssd_bench.csv
+        # SSD
+        # Native FS
 
-    # Fuse passthrough
+        vary_size ${in_f} "/mnt/valfiles" ${b_type} ${log_native_ssd} 
+        # Fuse passthrough
 
-    /home/centos/sea/src/passthrough_fh $fuse_mount
-    vary_size ${in_f} "${fuse_mount}/mnt/valfiles" ${b_type} ${prefix}_${b_type:0:1}s_fuse_ssd_bench.csv
-    fusermount -u ${fuse_mount}
+        /home/centos/sea/src/passthrough_fh $fuse_mount
+        vary_size ${in_f} "${fuse_mount}/mnt/valfiles" ${b_type} ${log_fuse_ssd}
+        fusermount -u ${fuse_mount}
+    done
 
 }
 
 
-size_benchmarks "bench_in.nii" "file"
+size_benchmarks "bench_in.nii" "file" "linear" 5
