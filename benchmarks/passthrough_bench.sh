@@ -54,6 +54,7 @@ size_benchmarks() {
     b_type=$2
     increase=$3
     reps=$4
+    passthrough=$5
 
     if [ ${in_f} == 'bench_in.nii' ]
     then
@@ -82,23 +83,23 @@ size_benchmarks() {
         vary_size ${in_f} "/dev/shm" ${b_type} ${log_native_mem}
         # Fuse passthrough
         # load fs
-        fuse_mount="/home/centos/sea/src/mount"
-        /home/centos/sea/src/passthrough_fh $fuse_mount
+        fuse_mount="/root/mount"
+       	${passthrough} $fuse_mount
         vary_size ${in_f} "${fuse_mount}/dev/shm" ${b_type} ${log_fuse_mem} 
         fusermount -u ${fuse_mount}
 
         # SSD
         # Native FS
 
-        vary_size ${in_f} "/mnt/valfiles" ${b_type} ${log_native_ssd} 
+        vary_size ${in_f} "/root/tmp" ${b_type} ${log_native_ssd} 
         # Fuse passthrough
 
-        /home/centos/sea/src/passthrough_fh $fuse_mount
-        vary_size ${in_f} "${fuse_mount}/mnt/valfiles" ${b_type} ${log_fuse_ssd}
+        ${passthrough} $fuse_mount
+     	vary_size ${in_f} "${fuse_mount}/root/tmp" ${b_type} ${log_fuse_ssd}
         fusermount -u ${fuse_mount}
     done
 
 }
 
 
-size_benchmarks "bench_in.nii" "file" "linear" 5
+size_benchmarks "bench_in.nii" "file" "linear" 5 /root/fuse/build/example/passthrough_fh
