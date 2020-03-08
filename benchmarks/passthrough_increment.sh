@@ -22,9 +22,9 @@ increment native-mem /dev/shm/inc_in/inc_1.nii /dev/shm/out 10 0
 rm /dev/shm/out/*
 
 ${passthrough} $fuse_mount
-increment fuse-mem "${passthrough}/dev/shm/inc_in/inc_1.nii" "$passthrough/dev/shm/out" 10 0
+increment fuse-mem "${fuse_mount}/dev/shm/inc_in/inc_1.nii" "${fuse_mount}/dev/shm/out" 10 0
 fusermount -u ${fuse_mount}
-rm /dev/shm/out/*
+rm -rf /dev/shm/out/
 rm -rf /dev/shm/inc_in
 
 cp -r inc_in /root
@@ -33,8 +33,8 @@ increment native-ssd /root/inc_in/inc_1.nii /root/out 10 0
 rm /root/out/*
 
 ${passthrough} $fuse_mount
-increment fuse-ssd "${passthrough}/root/inc_in/inc_1.nii" "$passthrough/root/inc_in/out" 10 0
+increment fuse-ssd "${fuse_mount}/root/inc_in/inc_1.nii" "${fuse_mount}/root/inc_in/out" 10 0
 fusermount -u ${fuse_mount}
-rm /root/out/*
+rm -rf /root/out/
 rm -rf /root/inc_in
 

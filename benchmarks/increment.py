@@ -22,7 +22,7 @@ def increment(infile, outdir, fs, delay, start, bench):
     e_i = time()
 
     s_w = time()
-    nib.save(img_inc, op.join(outdir, infile))
+    nib.save(img_inc, op.join(outdir, op.basename(infile)))
     e_w = time()
 
     bench.write(",".join([fs, infile, str(delay), str(start), str(s_r), str(e_r), str(s_i), str(e_i), str(s_w), str(e_w), linesep]))
@@ -42,7 +42,7 @@ if __name__=="__main__":
 
         bench.write('fs,fn,delay,start,read_s,read_e,increment_s,increment_e,write_s,write_e' + linesep)
         for i in range(it):
-            infile = op.basename(increment(infile, outdir, fs, delay, start, bench))
+            infile = increment(infile, outdir, fs, delay, start, bench)
 
 
 
