@@ -25,7 +25,7 @@ def increment(infile, outdir, fs, delay, start, bench):
     nib.save(img_inc, op.join(outdir, op.basename(infile)))
     e_w = time()
 
-    bench.write(",".join([fs, infile, str(delay), str(start), str(s_r), str(e_r), str(s_i), str(e_i), str(s_w), str(e_w), linesep]))
+    bench.write(",".join([fs, infile, str(delay), str(start), str(s_r), str(e_r), str(s_i), str(e_i), str(s_w), str(e_w) + linesep]))
 
     return infile
 
