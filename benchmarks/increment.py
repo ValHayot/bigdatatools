@@ -38,7 +38,7 @@ if __name__=="__main__":
     delay = int(sys.argv[5])
 
     start = time()
-    with open("./increment/{}-benchmarks.out".format(op.basename(infile)), "w+") as bench:
+    with open("./increment/{0}_{1}-benchmarks.out".format(fs, op.basename(infile)), "w+") as bench:
 
         bench.write('fs,fn,delay,start,read_s,read_e,increment_s,increment_e,write_s,write_e' + linesep)
         for i in range(it):
