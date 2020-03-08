@@ -33,7 +33,7 @@ increment native-ssd /root/inc_in/inc_1.nii /root/out 10 0
 rm /root/out/*
 
 ${passthrough} $fuse_mount
-increment fuse-ssd "${fuse_mount}/root/inc_in/inc_1.nii" "${fuse_mount}/root/inc_in/out" 10 0
+increment fuse-ssd "${fuse_mount}/root/inc_in/inc_1.nii" "${fuse_mount}/root/out" 10 0
 fusermount -u ${fuse_mount}
 rm -rf /root/out/
 rm -rf /root/inc_in
