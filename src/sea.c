@@ -46,6 +46,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <unistd.h>
+#include <libgen.h>
 #include <fcntl.h>
 #include <utime.h>
 #include <sys/stat.h>
@@ -60,6 +61,7 @@
 #include <sys/file.h> /* flock(2) */
 
 #define NUM_MOUNTS 10
+#define MAX_BLOCKS 100
 
 
 static struct options {
@@ -80,6 +82,58 @@ static const struct fuse_opt option_spec[] = {
 };
 
 
+static void sea_getblocks(char blocks[][PATH_MAX], const char *path)
+{
+    //get basename
+
+    char *path_dup = strndup(path, PATH_MAX);
+    fprintf(stderr, "Sea: path dup %s\n", path_dup);
+    char *bn = basename(path_dup);
+    //bn = strtok(bn, ".seapart_");
+    char *dn = dirname(path_dup);
+    fprintf(stderr, "Sea: path dirname %s\n", dn);
+    fprintf(stderr, "Sea: path basename %s\n", bn);
+
+    char fpath[PATH_MAX];
+
+    int j = 0;
+    for (int i = 0; i < options.total_mounts; i++){
+        strcpy(fpath, options.hierarchy[i]);
+        strncat(fpath, dn, PATH_MAX);
+
+        fprintf(stderr, "Sea: for loop\n");
+
+        DIR *dir;
+        struct dirent *ent;
+        if ((dir = opendir (options.hierarchy[i])) != NULL) {
+          /* print all the files and directories within directory */
+          while ((ent = readdir (dir)) != NULL) {
+            fprintf(stderr, "Sea: while loop\n");
+
+            char* sea_b = ".seapart_";
+
+            if (strstr(ent->d_name, sea_b) == NULL)
+                continue;
+
+            if ( strstr(ent->d_name, bn) != NULL ){
+                strcpy(blocks[j], options.hierarchy[i]);
+                strncat(blocks[j], "/", PATH_MAX);
+                strncat(blocks[j], ent->d_name, PATH_MAX);
+                fprintf(stderr, "Sea: block name %s\n", blocks[j]);
+                j++;
+            }
+          }
+          closedir (dir);
+        } else {
+            /* could not open directory */
+            fprintf(stderr, "Sea: could not open directory in get blocks\n");
+            abort();
+            //return EXIT_FAILURE;
+        }
+    }
+
+}
+
 static void sea_fullpath(char fpath[PATH_MAX], const char *path)
 {
     fprintf(stdout, "sea path: %s\n", path);
@@ -96,36 +150,100 @@ static void sea_fullpath(char fpath[PATH_MAX], const char *path)
     //    fprintf(stderr, "insufficient inodes");
     //}
 
-    fprintf(stderr, "all paths\n");
     // all possible locations for a given file/directory will be stored here
     //char ** all_paths = ( char ** ) malloc ( sizeof ( char * ) * options.total_mounts );
     
     //int j = 0;
+    // Check if file already exists
     for (int i = 0; i < options.total_mounts; i++){
         strcpy(fpath, options.hierarchy[i]);
         strncat(fpath, path, PATH_MAX);
-        break;
 
         //fprintf(stderr, "sea hierarchy %s\n", fpath);
-        // check if file or directory exists
-        //struct stat sb;
-        /*if (stat(fpath, &sb) == 0){
-            fprintf(stdout, "sea hierarchy %s\n", fpath);
+        struct stat sb;
+        if (stat(fpath, &sb) == 0){
             exists = 1;
+            break;
             //all_paths[j] = ( char * ) malloc ( sizeof ( char ) * ( PATH_MAX + 1 ) );
             //strcpy(all_paths[j], fpath);
-            j++;
-        }*/
+        }
     }
-    exists = 1;
 
+    
+    // if file does not exist, check if blocks exist or return best avail fs
     if (exists == 0){
-        strcpy(fpath, options.hierarchy[0]);
-        strncat(fpath, path, PATH_MAX);
+//        char blocks[options.total_mounts][PATH_MAX];
+//
+//        sea_getblocks(blocks, path);
+//
+//        if (blocks[0] == '\0') {
+//            char* blocks_[0]
+//        }
+
+
+        for (int i = 0; i < options.total_mounts; i++){
+            strcpy(fpath, options.hierarchy[i]);
+            strncat(fpath, path, PATH_MAX);
+
+            // Should add a check here to make sure working directory != current hierarch fs
+            struct statvfs st_wd;
+            struct statvfs st_m;
+            if (statvfs(options.rootdir, &st_wd) != 0){
+                fprintf(stderr, "Sea: sea_fullpath: error getting working directory %s info \n", options.rootdir);
+                abort();
+            }
+            if (statvfs(options.hierarchy[i], &st_m) != 0){
+                fprintf(stderr, "Sea: sea_fullpath: error getting mount directory %s info \n", options.hierarchy[i]);
+                abort();
+            }
+
+            //fprintf(stderr, "Sea: sea_fullpath error: favail %d bavail %d favail %d bavail %d", st_wd.f_favail, st_wd.f_bavail, st_m.f_favail, st_m.f_bavail);
+            if (st_wd.f_favail > 0 && st_wd.f_bavail > 0 && st_m.f_favail > 0 && st_m.f_bavail > 0){
+                break;
+            }
+        }
     }
     fprintf(stderr, "sea fullpath: %s\n", fpath);
 
-    //return all_paths;
+}
+
+// same as sea_fullpath except will return all possible directory locations
+static void sea_allpaths(char allpaths[][PATH_MAX], const char *path){
+    fprintf(stdout, "Sea: get all mounts\n");
+    
+    int exists = 0;
+    char fpath[PATH_MAX];
+
+    for (int i = 0; i < options.total_mounts; i++){
+        strcpy(fpath, options.hierarchy[i]);
+        strncat(fpath, path, PATH_MAX);
+
+        struct stat sb;
+        if (stat(fpath, &sb) == 0){
+            exists = 1;
+            strcpy(allpaths[i], fpath);
+        }
+    }
+
+    if (exists == 0){
+        for (int i = 0; i < options.total_mounts; i++){
+            strcpy(fpath, options.hierarchy[i]);
+            strncat(fpath, path, PATH_MAX);
+
+            // Should add a check here to make sure working directory != current hierarch fs
+            struct statvfs st_wd;
+            struct statvfs st_m;
+            if (statvfs(options.rootdir, &st_wd) != 0 && statvfs(options.hierarchy[i], &st_m)) {
+                fprintf(stderr, "Error getting working directory %s or fs %s info \n", options.rootdir, options.hierarchy[i]);
+                abort();
+            }
+
+            if (st_wd.f_favail > 0 && st_wd.f_bavail > 0 && st_m.f_favail > 0 && st_m.f_bavail > 0){
+                strcpy(allpaths[i], fpath);
+            }
+        }
+    }
+    
 
 }
 
@@ -147,6 +265,9 @@ static void *sea_init(struct fuse_conn_info *conn,
 	cfg->entry_timeout = 0;
 	cfg->attr_timeout = 0;
 	cfg->negative_timeout = 0;
+
+    // Setting max write value to 128MB
+    //conn->max_write = 134217728;
 
     FILE* fhierarchy = fopen(options.hierarchy_file, "r");
     fhierarchy = fopen(options.hierarchy_file, "r");
@@ -176,7 +297,6 @@ static void *sea_init(struct fuse_conn_info *conn,
         i++;
     }
     fclose(fhierarchy);
-    fprintf(stderr, "ERROR");
 
     options.total_mounts = i;
     
@@ -190,6 +310,19 @@ static void *sea_init(struct fuse_conn_info *conn,
 	return NULL;
 }
 
+// struct for file object as they'll be partitioned across file systems
+struct sea_filep {
+	int fd;
+    char main_path[PATH_MAX];
+	off_t offset;
+    off_t curr_offset;
+};
+
+static inline struct sea_filep *get_filep(struct fuse_file_info *fi)
+{
+	return (struct sea_filep *) (uintptr_t) fi->fh;
+}
+
 static int sea_getattr(const char *path, struct stat *stbuf,
 			struct fuse_file_info *fi)
 {
@@ -198,18 +331,61 @@ static int sea_getattr(const char *path, struct stat *stbuf,
 
 	(void) path;
 
-	if(fi)
-		res = fstat(fi->fh, stbuf);
+	if(fi){
+	    struct sea_filep *f = get_filep(fi);
+		res = fstat(f->fd, stbuf);
+
+        // probably can take this out of if/else
+        char blocks[MAX_BLOCKS][PATH_MAX];
+        sea_getblocks(blocks, f->main_path);
+
+        for (int i=1; strcmp(blocks[i], ""); i++){
+            struct stat *tempbuf = malloc(sizeof(struct stat));
+            fprintf(stderr, "sea: current getattr current block %s\n", blocks[i]);
+
+            lstat(blocks[i], tempbuf);
+
+            stbuf->st_size += tempbuf->st_size;
+            stbuf->st_blocks += tempbuf->st_blocks;
+        }
+
+
+    }
 	else
     {
+        fprintf(stderr, "Sea: getattr from filepath\n");
+        char blocks[MAX_BLOCKS][PATH_MAX];
+        sea_getblocks(blocks, path);
+        fprintf(stderr, "Sea: blocks obtained %s\n", blocks[0]);
+
+        if (strcmp(blocks[0], "") != 0){
+            fprintf(stderr, "sea: getting attribute of block %s\n", blocks[0]);
+            res = lstat(blocks[0], stbuf);
+            for (int i=1; strcmp(blocks[i], ""); i++){
+                struct stat *tempbuf = malloc(sizeof(struct stat));
+
+                lstat(blocks[i], tempbuf);
+
+                stbuf->st_size += tempbuf->st_size;
+                stbuf->st_blocks += tempbuf->st_blocks;
+            }
+            fprintf(stderr, "sea: result of getting attribute of block %d\n", res);
         char fpath[PATH_MAX];
         sea_fullpath(fpath, path);
-		res = lstat(fpath, stbuf);
+        res = lstat(fpath, stbuf);
+
+        //if (res < 0){
+            // struct stat st_blockbuf;
+            // Check if file is partitioned into blocks
+            //}
+        }
+        else
+            res = -1;
     }
 	if (res < 0)
 		return -errno;
 
-    fprintf(stderr, "Sea: getattr of path completed %s %d\n", path, res);
+    fprintf(stderr, "Sea: getattr of path completed %s %lu\n", path, stbuf->st_size);
 	return res;
 }
 
@@ -251,6 +427,7 @@ struct sea_dirp {
 	DIR *dp;
 	struct dirent *entry;
 	off_t offset;
+    DIR **alldps;
 };
 
 static int sea_opendir(const char *path, struct fuse_file_info *fi)
@@ -258,17 +435,18 @@ static int sea_opendir(const char *path, struct fuse_file_info *fi)
     fprintf(stderr, "sea: opening directory at path: %s\n", path);
 	int res = 0;
 	struct sea_dirp *d = malloc(sizeof(struct sea_dirp));
+    d->alldps = malloc(sizeof(options.total_mounts));
 	if (d == NULL)
 		return -ENOMEM;
 
-    char fpath[PATH_MAX];
-    //char ** all_paths;
-    sea_fullpath(fpath, path);
+    char allpaths[options.total_mounts][PATH_MAX];
+    sea_allpaths(allpaths, path);
 
-    //for (int i = 0; i < options.total_mounts; i++){
-        fprintf(stdout, "sea: opening directory %s\n", fpath);
+    for (int i = 0; i < options.total_mounts; i++){
+        fprintf(stdout, "sea: opening directory %s\n", allpaths[i]);
 
-        d->dp = opendir(fpath);//all_paths[0]);
+        d->dp = opendir(allpaths[i]);
+        d->alldps[i] = d->dp;
         if (d->dp == NULL) {
             res = -errno;
             free(d);
@@ -279,8 +457,8 @@ static int sea_opendir(const char *path, struct fuse_file_info *fi)
 
         fi->fh = (unsigned long) d;
 
-    //}
-    fprintf(stderr, "sea: directory %s opened\n", fpath);
+        fprintf(stderr, "sea: directory %s opened %lu\n", allpaths[i], (unsigned long)d->alldps[i]);
+    }
 	return res;
 }
 
@@ -293,63 +471,74 @@ static int sea_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 		       off_t offset, struct fuse_file_info *fi,
 		       enum fuse_readdir_flags flags)
 {
-    fprintf(stderr, "sea: reading directory\n");
+    fprintf(stderr, "sea: reading directory %s\n", path);
 	struct sea_dirp *d = get_dirp(fi);
+    fprintf(stderr, "dir p %lu %lu %lu", (unsigned long) d->dp, (unsigned long) d->alldps[0], (unsigned long) d->alldps[1]);
 
 	(void) path;
 
-	if (offset != d->offset) {
+    if (offset != d->offset) {
+        for(int i = 0; i < options.total_mounts; i++){
+            if(d->alldps[i] == NULL)
+                break;
+
 #ifndef __FreeBSD__
-		seekdir(d->dp, offset);
+            seekdir(d->alldps[i], offset);
 #else
-		/* Subtract the one that we add when calling
-		   telldir() below */
-		seekdir(d->dp, offset-1);
+            /* Subtract the one that we add when calling
+               telldir() below */
+            seekdir(d->alldps[i], offset-1);
 #endif
-		d->entry = NULL;
-		d->offset = offset;
-	}
-	while (1) {
-		struct stat st;
-		off_t nextoff;
-		enum fuse_fill_dir_flags fill_flags = 0;
+        }
+        d->entry = NULL;
+        d->offset = offset;
+    }
+    for(int i=0; i < options.total_mounts; i++){
 
-		if (!d->entry) {
-			d->entry = readdir(d->dp);
-			if (!d->entry)
-				break;
-		}
+        if(d->alldps[i] == NULL)
+            break;
+
+        while (1) {
+            struct stat st;
+            off_t nextoff;
+            enum fuse_fill_dir_flags fill_flags = 0;
+
+            if (!d->entry) {
+                d->entry = readdir(d->alldps[i]);
+                if (!d->entry)
+                    break;
+            }
 #ifdef HAVE_FSTATAT
-		if (flags & FUSE_READDIR_PLUS) {
-			int res;
+            if (flags & FUSE_READDIR_PLUS) {
+                int res;
 
-			res = fstatat(dirfd(d->dp), d->entry->d_name, &st,
-				      AT_SYMLINK_NOFOLLOW);
-			if (res != -1)
-				fill_flags |= FUSE_FILL_DIR_PLUS;
-		}
+                res = fstatat(dirfd(d->alldps[i]), d->entry->d_name, &st,
+                          AT_SYMLINK_NOFOLLOW);
+                if (res != -1)
+                    fill_flags |= FUSE_FILL_DIR_PLUS;
+            }
 #endif
-		if (!(fill_flags & FUSE_FILL_DIR_PLUS)) {
-			memset(&st, 0, sizeof(st));
-			st.st_ino = d->entry->d_ino;
-			st.st_mode = d->entry->d_type << 12;
-		}
-		nextoff = telldir(d->dp);
+            if (!(fill_flags & FUSE_FILL_DIR_PLUS)) {
+                memset(&st, 0, sizeof(st));
+                st.st_ino = d->entry->d_ino;
+                st.st_mode = d->entry->d_type << 12;
+            }
+            nextoff = telldir(d->alldps[i]);
 #ifdef __FreeBSD__		
-		/* Under FreeBSD, telldir() may return 0 the first time
-		   it is called. But for libfuse, an offset of zero
-		   means that offsets are not supported, so we shift
-		   everything by one. */
-		nextoff++;
+            /* Under FreeBSD, telldir() may return 0 the first time
+               it is called. But for libfuse, an offset of zero
+               means that offsets are not supported, so we shift
+               everything by one. */
+            nextoff++;
 #endif
-		if (filler(buf, d->entry->d_name, &st, nextoff, fill_flags))
-			break;
+            if (filler(buf, d->entry->d_name, &st, nextoff, fill_flags))
+                break;
 
-        fprintf(stderr, "DIRENTRY %s\n", d->entry->d_name);
-		d->entry = NULL;
-		d->offset = nextoff;
-	}
-
+            fprintf(stderr, "DIRENTRY %s\n", d->entry->d_name);
+            d->entry = NULL;
+            d->offset = nextoff;
+        }
+    }
     fprintf(stderr, "sea: directory %s read\n", path);
 	return 0;
 }
@@ -564,6 +753,7 @@ static int sea_utimens(const char *path, const struct timespec ts[2],
 }
 #endif
 
+
 static int sea_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
 	int fd;
@@ -583,16 +773,40 @@ static int sea_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 
 static int sea_open(const char *path, struct fuse_file_info *fi)
 {
-	int fd;
+
+    fprintf(stderr, "Sea: attempting to open path %s\n", path);
     char fpath[PATH_MAX];
-    sea_fullpath(fpath, path);
+    char* path_dup_bn = strndup(path, PATH_MAX);
+    char* path_dup_dn = strndup(path, PATH_MAX);
+    char block_path[PATH_MAX]; 
+    char block_name[PATH_MAX];
+    char hidden[PATH_MAX];
+    strcpy(block_path, dirname(path_dup_dn));
+    strcpy(block_name, basename(path_dup_bn));
+    strcpy(hidden, ".");
+    strncat(hidden, block_name, PATH_MAX);
+    strncat(block_path, hidden, PATH_MAX);
+    strncat(block_path, ".seapart_0", PATH_MAX); 
+    fprintf(stderr, "Sea: hidden %s, path %s, block_name %s, block_path %s\n", hidden, path, block_name, block_path);
+
+    sea_fullpath(fpath, block_path);
+
+    struct sea_filep *f = malloc(sizeof(struct sea_filep));
+
+    strcpy(f->main_path, path);
+
+    if (f == NULL)
+        return -ENOMEM;
 
     fprintf(stderr, "sea open fp: %s\n", fpath);
-	fd = open(fpath, fi->flags);
-	if (fd == -1)
+	f->fd = open(fpath, fi->flags);
+	if (f->fd == -1)
 		return -errno;
 
-	fi->fh = fd;
+    f->offset = 0;
+    f->curr_offset = 0;
+
+	fi->fh = (unsigned long) f;
     fprintf(stderr, "Sea: open path %s completed.\n", fpath);
 	return 0;
 }
@@ -603,8 +817,22 @@ static int sea_read(const char *path, char *buf, size_t size, off_t offset,
     fprintf(stderr, "Sea: read path %s\n", path);
 	int res = 0;
 
-	(void) path;
-	res = pread(fi->fh, buf, size, offset);
+    //
+    struct sea_filep *f = get_filep(fi);
+    char blocks[MAX_BLOCKS][PATH_MAX];
+    sea_getblocks(blocks, path);
+
+    for(int i=0; i < options.total_mounts; i++){
+        char* block_offset = strchr(blocks[1], '_');
+        off_t b_off = (off_t) block_offset;
+
+        if (offset >= b_off && offset - b_off <= size){
+            int fd = open(blocks[i], fi->flags);
+            size_t adjusted_size = size - offset + b_off; 
+            res = pread(fd, buf, adjusted_size, offset - b_off);
+        }
+
+    }
 	if (res < 0)
 		res = -errno;
 
@@ -613,23 +841,58 @@ static int sea_read(const char *path, char *buf, size_t size, off_t offset,
 	return res;
 }
 
+static int get_numblocks(char blocks[][PATH_MAX]){
+    int num = 0;
+    for(; strcmp(blocks[num], ""); num++ );
+    return num;
+}
+
 static int sea_read_buf(const char *path, struct fuse_bufvec **bufp,
 			size_t size, off_t offset, struct fuse_file_info *fi)
 {
-    fprintf(stderr, "Sea: read buff of path %s\n", path);
+    struct sea_filep *f = get_filep(fi);
+
+    fprintf(stderr, "Sea: read buff of path %s\n", f->main_path);
 	struct fuse_bufvec *src;
 
 	(void) path;
 
-	src = malloc(sizeof(struct fuse_bufvec));
+    char blocks[MAX_BLOCKS][PATH_MAX];
+    sea_getblocks(blocks, f->main_path);
+    int n_blocks = get_numblocks(blocks);
+
+	src = malloc(sizeof(struct fuse_bufvec)*n_blocks);
+
 	if (src == NULL)
 		return -ENOMEM;
 
 	*src = FUSE_BUFVEC_INIT(size);
 
-	src->buf[0].flags = FUSE_BUF_IS_FD | FUSE_BUF_FD_SEEK;
-	src->buf[0].fd = fi->fh;
-	src->buf[0].pos = offset;
+
+    struct stat *st = malloc(sizeof(struct stat));
+    lstat(blocks[0], st);
+    src->buf[0].size = st->st_size;
+    src->buf[0].flags = FUSE_BUF_IS_FD | FUSE_BUF_FD_SEEK;
+    src->buf[0].fd = f->fd;
+    src->buf[0].pos = 0;
+
+    fprintf(stderr, "sea: size to read %lu\n", size);
+
+    for (int i=1; i < n_blocks; i++){
+        fprintf(stderr, "sea: reading current buff %s\n", blocks[i]);
+        int fd = open(blocks[i], fi->flags);
+
+        struct stat *tempst = malloc(sizeof(struct stat));
+        lstat(blocks[i], tempst);
+
+        src->buf[i].size = tempst->st_size;
+        src->buf[i].flags = FUSE_BUF_IS_FD | FUSE_BUF_FD_SEEK;
+        src->buf[i].fd = fd;
+        src->buf[i].mem = malloc(tempst->st_size);
+        src->buf[i].pos = 0;
+        src->count++;
+    }
+
 
 	*bufp = src;
 
@@ -674,10 +937,20 @@ static int sea_statfs(const char *path, struct statvfs *stbuf)
 	int res = 0;
     char fpath[PATH_MAX];
     sea_fullpath(fpath, path);
-
 	res = statvfs(fpath, stbuf);
+
 	if (res < 0)
-		return -errno;
+    {
+        // Check if file is partitioned into blocks
+        char blocks[MAX_BLOCKS][PATH_MAX];
+        sea_getblocks(blocks, path);
+
+        if (blocks[0] !='\0')
+            res = statvfs(blocks[0], stbuf);
+
+        if (res < 0)
+		    return -errno;
+    }
 
     fprintf(stderr, "sea: obtained file stats: %s\n", fpath);
 	return res;
@@ -694,7 +967,9 @@ static int sea_flush(const char *path, struct fuse_file_info *fi)
 	   called multiple times for an open file, this must not really
 	   close the file.  This is important if used on a network
 	   filesystem like NFS which flush the data/metadata on close() */
-	res = close(dup(fi->fh));
+
+    struct sea_filep *f = get_filep(fi);
+	res = close(dup(f->fd));
 	if (res < 0)
 		return -errno;
 
