@@ -63,6 +63,7 @@
 #define NUM_MOUNTS 10
 #define MAX_BLOCKS 100
 #define WRITE_SIZE 131072 /* can get from fuse directly most likely */
+#define SEA_CHUNK ".seapart_"
 
 
 static struct options {
@@ -85,19 +86,14 @@ static const struct fuse_opt option_spec[] = {
 // from: https://cboard.cprogramming.com/c-programming/143155-simple-removal-string-string-via-strtok.html
 static void stripstr(char *string, char *sub) {
     char *match = string;
-    int len = strlen(sub);
-    while ((match = strstr(match, sub))) {
-        *match = '\0';
-        break;
-        //strcat(string, match+len);
-        //match++;
-    }
+    match = strstr(match, sub);
+    *match = '\0';
 }
 
 static void get_fusepath(char blockname[PATH_MAX], char fusepath[PATH_MAX])
 {
 
-    if (strstr(blockname, "seapart") != NULL)
+    if (strstr(blockname, SEA_CHUNK) != NULL)
     {
         char *path_dup_dir = strndup(blockname, PATH_MAX);
         char *path_dup_bn = strndup(blockname, PATH_MAX);
@@ -105,7 +101,7 @@ static void get_fusepath(char blockname[PATH_MAX], char fusepath[PATH_MAX])
         char *bn = basename(path_dup_bn);
         bn++;
         fprintf(stderr, "sea: bn %s\n", bn);
-        stripstr(bn, ".seapart");
+        stripstr(bn, SEA_CHUNK);
         fprintf(stderr, "sea: bn %s dn %s \n", bn, dn);
 
         char* tmp_dn = strndup(dn, PATH_MAX);
@@ -141,7 +137,6 @@ static void sea_getblocks(char blocks[][PATH_MAX], const char *path)
     char *path_dup_bn = strndup(path, PATH_MAX);
     fprintf(stderr, "Sea: path dup %s\n", path_dup_bn);
     char *bn = basename(path_dup_bn);
-    //bn = strtok(bn, ".seapart_");
     char *dn = dirname(path_dup_dir);
     fprintf(stderr, "Sea: path dirname %s\n", dn);
     fprintf(stderr, "Sea: path basename %s\n", bn);
@@ -159,9 +154,7 @@ static void sea_getblocks(char blocks[][PATH_MAX], const char *path)
           /* print all the files and directories within directory */
           while ((ent = readdir (dir)) != NULL) {
 
-            char* sea_b = ".seapart_";
-
-            if (strstr(ent->d_name, sea_b) == NULL)
+            if (strstr(ent->d_name, SEA_CHUNK) == NULL)
                 continue;
 
             if ( strstr(ent->d_name, bn) != NULL ){
@@ -598,7 +591,11 @@ static int sea_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
             get_fusepath(d->entry->d_name, fusepath);
 
-            if (filler(buf, fusepath, &st, nextoff, fill_flags))
+            char first_chunk[PATH_MAX];
+            sprintf(first_chunk, "%s0", SEA_CHUNK);
+
+            //TODO: Add . and ..
+            if (strstr(d->entry->d_name, first_chunk) && filler(buf, fusepath, &st, nextoff, fill_flags))
                 break;
 
             fprintf(stderr, "DIRENTRY %s\n", d->entry->d_name);
@@ -828,7 +825,7 @@ static void get_block_name(char block_path[PATH_MAX], const char *path, off_t of
     char hidden[PATH_MAX];
     char suffix[PATH_MAX];
 
-    sprintf(suffix, ".seapart_%lld", (long long int)offset);
+    sprintf(suffix, "%s%lld", SEA_CHUNK, (long long int)offset);
 
     strcpy(block_path, dirname(path_dup_dn));
     strcpy(block_name, basename(path_dup_bn));
@@ -956,9 +953,19 @@ static int sea_read_buf(const char *path, struct fuse_bufvec **bufp,
 
 	*src = FUSE_BUFVEC_INIT(size);
 
-    //struct stat *st = malloc(sizeof(struct stat));
-    //lstat(blocks[0], st);
-    src->buf[0].size = size;//st->st_size;
+    struct stat *st = malloc(sizeof(struct stat));
+    lstat(blocks[0], st);
+
+    size_t readsize = 0;
+
+    if (size > st->st_size)
+    {
+        readsize = st->st_size;
+    }
+    else
+        readsize = size;
+
+    src->buf[0].size = readsize;
     src->buf[0].flags = FUSE_BUF_IS_FD | FUSE_BUF_FD_SEEK;
     src->buf[0].fd = f->fd;
     src->buf[0].pos = 0;
@@ -976,14 +983,25 @@ static int sea_read_buf(const char *path, struct fuse_bufvec **bufp,
 
         fprintf(stderr, "sea: block offset %ld\n", block_off);
 
-        //struct stat *tempst = malloc(sizeof(struct stat));
-        //lstat(blocks[i], tempst);
+        struct stat *tempst = malloc(sizeof(struct stat));
+        lstat(blocks[i], tempst);
 
-        src->buf[i].size = size;//tempst->st_size;
+        if (size > tempst->st_size)
+        {
+            readsize = tempst->st_size;
+            src->buf[i].pos = 0; //TODO: this is likely not always 0 if there are a bunch of tiny files
+        }
+        else
+        {
+            readsize = size;
+            src->buf[i].pos = block_off;
+        }
+
+
+        src->buf[i].size = readsize;
         src->buf[i].flags = FUSE_BUF_IS_FD | FUSE_BUF_FD_SEEK;
         src->buf[i].fd = fd;
         //src->buf[i].mem = malloc(tempst->st_size);
-        src->buf[i].pos = block_off;
         src->count++;
     }
 
