@@ -1,0 +1,4 @@
+gcc -Wall sea.c `pkg-config fuse3 --cflags --libs` -lulockmgr -g -o sea
+valgrind ./sea -d -s rootdir/ mount/ --hierarchy_file=hierarchy_file.txt
+fusermount -u mount
+./sea -d --hierarchy_file=hierarchy_file.txt rootdir/ mount/
