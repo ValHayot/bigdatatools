@@ -6,11 +6,12 @@ import subprocess
 import pathlib
 
 # sample command
-# python fs_benchmarks.py ../../disk/scripts/bench_disks.sh 10 ../data/fusebenchmarks.csv /home/vhs/sea/src/hierarchy_file
+# python fs_benchmarks.py ../../disk/scripts/bench_disks.sh 10 ../data/fusebenchmarks.csv /home/vhs/hierarchy_file.txt False
 script = sys.argv[1]
 iterations = sys.argv[2]
 benchmark_file = sys.argv[3]
 h_file = sys.argv[4]
+pass_options = bool(sys.argv[5])
 
 pass_mount = '/dev/shm/passmount'
 sea_mount = '/dev/shm/seamount'
@@ -18,6 +19,8 @@ sea_shared = '/mnt/lustre/vhs/seashared'
 
 filesystems = ['/home/vhs/libfuse/build/example/passthrough_fh', '/home/vhs/sea/src/sea', 'native']
 mountpoints = ['/mnt/lustre/vhs/passthrough', '/tmp/passthrough', '/dev/shm/passthrough']
+
+options = ['-o', 'kernel_cache', '-o', 'auto_cache', '-o', 'remember=1']
 
 # create benchmark_file
 with open(benchmark_file, 'w+') as f:
@@ -31,10 +34,15 @@ random.shuffle(conditions)
 
 def start_fuse(fs, mount_type='fuse'):
     print('Starting FUSE')
+
+    cmd = [fs]
+
+    if pass_options:
+        cmd.extend(options)
     if mount_type == 'fuse':
-        cmd = [fs, pass_mount]
+        cmd.append(pass_mount)
     else:
-        cmd = [fs, '--hierarchy_file={}'.format(h_file), sea_shared, sea_mount]
+        cmd.extend(['--hierarchy_file={}'.format(h_file), sea_shared, sea_mount])
 
     p = subprocess.Popen(cmd)
     p.communicate()
