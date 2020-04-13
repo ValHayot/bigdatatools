@@ -73,7 +73,7 @@ def run_benchmark(script, fs, mountpoint, benchmark_file):
         print(f)
         f = os.path.join(f, dd_f)
     elif 'passthrough_hp' in fs:
-        f = os.path.join(pass_mount, dd_f)
+        f = os.path.join(mountpoint, dd_f)
     elif 'sea' in fs:
         f = os.path.join(sea_mount, dd_f)
     else:
