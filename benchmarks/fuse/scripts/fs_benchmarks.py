@@ -11,13 +11,14 @@ script = sys.argv[1]
 iterations = sys.argv[2]
 benchmark_file = sys.argv[3]
 h_file = sys.argv[4]
-pass_options = bool(sys.argv[5])
+pass_options = bool(sys.argv[5] == 'True')
+print(pass_options)
 
 pass_mount = '/dev/shm/passmount'
 sea_mount = '/dev/shm/seamount'
 sea_shared = '/mnt/lustre/vhs/seashared'
 
-filesystems = ['/home/vhs/libfuse/build/example/passthrough_fh', '/home/vhs/sea/src/sea', 'native']
+filesystems = ['/home/vhs/libfuse/build/example/passthrough_fh', '/home/vhs/libfuse/build/example/passthrough_hp', '/home/vhs/sea/src/sea', 'native']
 mountpoints = ['/mnt/lustre/vhs/passthrough', '/tmp/passthrough', '/dev/shm/passthrough']
 
 options = ['-o', 'kernel_cache', '-o', 'auto_cache', '-o', 'remember=1']
@@ -32,20 +33,24 @@ conditions = [(fs, '{0}{1}'.format(m, fs[-3:]) if 'native' not in fs else m.repl
 conditions *= 10
 random.shuffle(conditions)
 
-def start_fuse(fs, mount_type='fuse'):
+def start_fuse(fs, source, mount_type='fuse'):
     print('Starting FUSE')
 
     cmd = [fs]
 
     if pass_options:
         cmd.extend(options)
+    if 'hp' in fs:
+        cmd.append(source)
     if mount_type == 'fuse':
         cmd.append(pass_mount)
+
     else:
         cmd.extend(['--hierarchy_file={}'.format(h_file), sea_shared, sea_mount])
 
+    print('Starting fs with command: ', ' '.join(cmd))
+
     p = subprocess.Popen(cmd)
-    p.communicate()
 
 
 def stop_fuse(mountpoint=None):
@@ -67,6 +72,8 @@ def run_benchmark(script, fs, mountpoint, benchmark_file):
         f = '{0}{1}'.format(pass_mount, mountpoint)
         print(f)
         f = os.path.join(f, dd_f)
+    elif 'passthrough_hp' in fs:
+        f = os.path.join(pass_mount, dd_f)
     elif 'sea' in fs:
         f = os.path.join(sea_mount, dd_f)
     else:
@@ -93,13 +100,13 @@ for c in conditions:
     print(c)
     os.makedirs(c[1])
     if 'sea' in c[0]:
-        start_fuse(c[0], 'sea')
+        start_fuse(*c, mount_type='sea')
         run_benchmark(script, *c, benchmark_file)
         stop_fuse(sea_mount)
         cleanup_sea()
 
     elif 'native' not in c[0]:
-        start_fuse(c[0])
+        start_fuse(*c)
         run_benchmark(script, *c, benchmark_file)
         stop_fuse(pass_mount)
 
