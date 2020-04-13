@@ -15,6 +15,7 @@ pass_options = bool(sys.argv[5] == 'True')
 print(pass_options)
 
 pass_mount = '/dev/shm/passmount'
+passhp_mount = '/dev/shm/passhpmout'
 sea_mount = '/dev/shm/seamount'
 sea_shared = '/mnt/lustre/vhs/seashared'
 
@@ -41,8 +42,8 @@ def start_fuse(fs, source, mount_type='fuse'):
     if pass_options:
         cmd.extend(options)
     if 'hp' in fs:
-        cmd.append(source)
-    if mount_type == 'fuse':
+        cmd.extend([source, passhp_mount])
+    elif mount_type == 'fuse' and 'hp' not in fs:
         cmd.append(pass_mount)
 
     else:
@@ -73,7 +74,7 @@ def run_benchmark(script, fs, mountpoint, benchmark_file):
         print(f)
         f = os.path.join(f, dd_f)
     elif 'passthrough_hp' in fs:
-        f = os.path.join(mountpoint, dd_f)
+        f = os.path.join(passhp_mount, dd_f)
     elif 'sea' in fs:
         f = os.path.join(sea_mount, dd_f)
     else:
