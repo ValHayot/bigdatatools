@@ -15,7 +15,7 @@ pass_options = bool(sys.argv[5] == 'True')
 print(pass_options)
 
 pass_mount = '/dev/shm/passmount'
-passhp_mount = '/dev/shm/passhpmout'
+passhp_mount = '/dev/shm/passhpmount'
 sea_mount = '/dev/shm/seamount'
 sea_shared = '/mnt/lustre/vhs/seashared'
 
@@ -41,17 +41,16 @@ def start_fuse(fs, source, mount_type='fuse'):
 
     if pass_options:
         cmd.extend(options)
-    if 'hp' in fs:
+    if '_hp' in fs:
         cmd.extend([source, passhp_mount])
-    elif mount_type == 'fuse' and 'hp' not in fs:
+    elif mount_type == 'fuse' and '_hp' not in fs:
         cmd.append(pass_mount)
-
     else:
         cmd.extend(['--hierarchy_file={}'.format(h_file), sea_shared, sea_mount])
 
     print('Starting fs with command: ', ' '.join(cmd))
 
-    p = subprocess.Popen(cmd)
+    p = subprocess.Popen(cmd, )
 
 
 def stop_fuse(mountpoint=None):
@@ -109,7 +108,10 @@ for c in conditions:
     elif 'native' not in c[0]:
         start_fuse(*c)
         run_benchmark(script, *c, benchmark_file)
-        stop_fuse(pass_mount)
+        if '_hp' in c[0]:
+            stop_fuse(passhp_mount)
+        else:
+            stop_fuse(pass_mount)
 
     else:
         run_benchmark(script, *c, benchmark_file)
