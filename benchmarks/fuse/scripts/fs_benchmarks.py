@@ -26,7 +26,7 @@ options = ['-o', 'kernel_cache', '-o', 'auto_cache', '-o', 'remember=1']
 
 # create benchmark_file
 with open(benchmark_file, 'w+') as f:
-    f.write('device,mode,bandwidth,unit\n')
+    f.write('device,mode,bandwidth,unit,source\n')
 
 # Setup and randomize conditions for execution
 conditions = [(fs, '{0}{1}'.format(m, fs[-3:]) if 'native' not in fs else m.replace('passthrough', 'native'))
@@ -79,7 +79,7 @@ def run_benchmark(script, fs, mountpoint, benchmark_file):
     else:
         f = os.path.join(mountpoint, dd_f)
 
-    p = subprocess.Popen([script, f, benchmark_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = subprocess.Popen([script, f, benchmark_file, mountpoint], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     (out, err) = p.communicate()
 
 def cleanup_sea():
