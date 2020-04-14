@@ -39,11 +39,11 @@ def start_fuse(fs, source, mount_type='fuse'):
 
     cmd = [fs]
 
-    if pass_options:
-        cmd.extend(options)
     if '_hp' in fs:
         cmd.extend([source, passhp_mount])
     elif mount_type == 'fuse' and '_hp' not in fs:
+        if pass_options:
+            cmd.extend(options)
         cmd.append(pass_mount)
     else:
         cmd.extend(['--hierarchy_file={}'.format(h_file), sea_shared, sea_mount])
