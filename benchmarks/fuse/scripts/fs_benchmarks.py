@@ -22,7 +22,7 @@ sea_shared = '/mnt/lustre/vhs/seashared'
 filesystems = ['/home/vhs/libfuse/build/example/passthrough_fh', '/home/vhs/libfuse/build/example/passthrough_hp', '/home/vhs/sea/src/sea', 'native']
 mountpoints = ['/mnt/lustre/vhs/passthrough', '/tmp/passthrough', '/dev/shm/passthrough']
 
-options = ['-o', 'kernel_cache', '-o', 'auto_cache', '-o', 'remember=1']
+options = ['-o', 'kernel_cache', '-o', 'noforget']
 
 # create benchmark_file
 with open(benchmark_file, 'w+') as f:
