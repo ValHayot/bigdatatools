@@ -6,12 +6,13 @@ import subprocess
 import pathlib
 
 # sample command
-# python fs_benchmarks.py ../../disk/scripts/bench_disks.sh 10 ../data/fusebenchmarks.csv /home/vhs/hierarchy_file.txt False
+# python fs_benchmarks.py ../../disk/scripts/bench_disks.sh 10 ../data/fusebenchmarks.csv /home/vhs/hierarchy_file.txt False fdatasync,notrunc
 script = sys.argv[1]
 iterations = sys.argv[2]
 benchmark_file = sys.argv[3]
 h_file = sys.argv[4]
 pass_options = bool(sys.argv[5] == 'True')
+dd_opts=sys.argv[6]
 print(pass_options)
 
 pass_mount = '/dev/shm/passmount'
@@ -79,7 +80,7 @@ def run_benchmark(script, fs, mountpoint, benchmark_file):
     else:
         f = os.path.join(mountpoint, dd_f)
 
-    p = subprocess.Popen([script, f, benchmark_file, mountpoint], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = subprocess.Popen([script, f, benchmark_file, mountpoint, dd_opts], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     (out, err) = p.communicate()
 
 def cleanup_sea():
